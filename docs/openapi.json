@@ -1,0 +1,5264 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "F1 Replay API",
+  "description": "Replay historical Formula 1 races as if live: browse imported races, control replays, read the authoritative race state, detected events and timing series, and stream live updates over WebSocket (`/api/v1/replays/{replay_id}/stream`).",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/health": {
+   "get": {
+    "tags": [
+     "Health"
+    ],
+    "summary": "Health",
+    "description": "Liveness probe \u2014 does not touch Postgres or Redis.",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ready": {
+   "get": {
+    "tags": [
+     "Health"
+    ],
+    "summary": "Ready",
+    "description": "Readiness probe \u2014 checks Postgres and Redis.",
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/seasons": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List imported seasons",
+    "description": "Seasons with at least one imported race, newest first.",
+    "operationId": "list_seasons_api_v1_seasons_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SeasonSummary"
+         },
+         "type": "array",
+         "title": "Response List Seasons Api V1 Seasons Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/races": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List imported races",
+    "description": "Imported races (newest season first, then by round) with their sessions.",
+    "operationId": "list_races_api_v1_races_get",
+    "parameters": [
+     {
+      "name": "season",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 2100,
+         "minimum": 1950
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Season"
+      }
+     },
+     {
+      "name": "round",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 30,
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Championship round",
+       "title": "Round"
+      },
+      "description": "Championship round"
+     },
+     {
+      "name": "event",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 100
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Case-insensitive name/location match",
+       "title": "Event"
+      },
+      "description": "Case-insensitive name/location match"
+     },
+     {
+      "name": "session_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/SessionType"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Only races with this session imported",
+       "title": "Session Type"
+      },
+      "description": "Only races with this session imported"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/RaceSummary"
+         },
+         "title": "Response List Races Api V1 Races Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/races/{race_id}": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "Get race metadata",
+    "operationId": "get_race_api_v1_races__race_id__get",
+    "parameters": [
+     {
+      "name": "race_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Race Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RaceDetail"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/races/{race_id}/drivers": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List a race's drivers",
+    "description": "Participants of one session of the event, ordered by abbreviation.",
+    "operationId": "list_race_drivers_api_v1_races__race_id__drivers_get",
+    "parameters": [
+     {
+      "name": "race_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Race Id"
+      }
+     },
+     {
+      "name": "session_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "$ref": "#/components/schemas/SessionType",
+       "description": "Which session of the event (default: the race)",
+       "default": "RACE"
+      },
+      "description": "Which session of the event (default: the race)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DriverSummary"
+         },
+         "title": "Response List Race Drivers Api V1 Races  Race Id  Drivers Get"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/races/{race_id}/laps": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List a race's historical laps",
+    "description": "Complete historical laps (not limited by any replay), ordered by lap then driver.",
+    "operationId": "list_race_laps_api_v1_races__race_id__laps_get",
+    "parameters": [
+     {
+      "name": "race_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Race Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9-]{1,36}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     },
+     {
+      "name": "session_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "$ref": "#/components/schemas/SessionType",
+       "description": "Which session of the event (default: the race)",
+       "default": "RACE"
+      },
+      "description": "Which session of the event (default: the race)"
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "minimum": 1,
+       "description": "Page size",
+       "default": 100,
+       "title": "Limit"
+      },
+      "description": "Page size"
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "Items to skip",
+       "default": 0,
+       "title": "Offset"
+      },
+      "description": "Items to skip"
+     },
+     {
+      "name": "lap_from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "First lap (inclusive)",
+       "title": "Lap From"
+      },
+      "description": "First lap (inclusive)"
+     },
+     {
+      "name": "lap_to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Last lap (inclusive)",
+       "title": "Lap To"
+      },
+      "description": "Last lap (inclusive)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LapPage"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "Get session metadata",
+    "operationId": "get_session_api_v1_sessions__session_id__get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionDetail"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/laps": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List a session's historical laps",
+    "operationId": "list_laps_api_v1_sessions__session_id__laps_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9-]{1,36}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "minimum": 1,
+       "description": "Page size",
+       "default": 100,
+       "title": "Limit"
+      },
+      "description": "Page size"
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "Items to skip",
+       "default": 0,
+       "title": "Offset"
+      },
+      "description": "Items to skip"
+     },
+     {
+      "name": "lap_from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "First lap (inclusive)",
+       "title": "Lap From"
+      },
+      "description": "First lap (inclusive)"
+     },
+     {
+      "name": "lap_to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Last lap (inclusive)",
+       "title": "Lap To"
+      },
+      "description": "Last lap (inclusive)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LapPage"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/stints": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List a session's tyre stints",
+    "operationId": "list_stints_api_v1_sessions__session_id__stints_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9-]{1,36}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/StintOut"
+         },
+         "title": "Response List Stints Api V1 Sessions  Session Id  Stints Get"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/track-status": {
+   "get": {
+    "tags": [
+     "Races"
+    ],
+    "summary": "List a session's track status periods",
+    "operationId": "list_track_status_api_v1_sessions__session_id__track_status_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/TrackStatusOut"
+         },
+         "title": "Response List Track Status Api V1 Sessions  Session Id  Track Status Get"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays": {
+   "post": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Create a replay",
+    "description": "Create a replay (``CREATED``) for a session whose timeline has been generated.",
+    "operationId": "create_replay_api_v1_replays_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReplayCreateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Conflict",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Unprocessable Content",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}": {
+   "get": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Get replay status",
+    "operationId": "get_replay_api_v1_replays__replay_id__get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/start": {
+   "post": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Start a created replay",
+    "description": "``CREATED`` \u2192 ``RUNNING``; any other status is 409 ``INVALID_REPLAY_TRANSITION``.",
+    "operationId": "start_replay_api_v1_replays__replay_id__start_post",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/pause": {
+   "post": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Pause a running replay",
+    "description": "``RUNNING`` \u2192 ``PAUSED``.",
+    "operationId": "pause_replay_api_v1_replays__replay_id__pause_post",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/resume": {
+   "post": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Resume a paused replay",
+    "description": "``PAUSED`` \u2192 ``RUNNING``.",
+    "operationId": "resume_replay_api_v1_replays__replay_id__resume_post",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/stop": {
+   "post": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Stop a replay",
+    "description": "``RUNNING``/``PAUSED`` \u2192 ``STOPPED`` (terminal; use restart to run again).",
+    "operationId": "stop_replay_api_v1_replays__replay_id__stop_post",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/restart": {
+   "post": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Restart a replay from the beginning",
+    "description": "Any started status \u2192 ``RUNNING`` from race time 0 under a new run; keeps the speed.",
+    "operationId": "restart_replay_api_v1_replays__replay_id__restart_post",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/speed": {
+   "patch": {
+    "tags": [
+     "Replays"
+    ],
+    "summary": "Change playback speed",
+    "description": "Allowed in any status; the virtual race position is preserved.",
+    "operationId": "change_replay_speed_api_v1_replays__replay_id__speed_patch",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReplaySpeedRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Unprocessable Content"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/state": {
+   "get": {
+    "tags": [
+     "Race State"
+    ],
+    "summary": "Get the current race state",
+    "description": "Authoritative race snapshot with drivers ordered by position.\n\n409 ``REPLAY_NOT_STARTED`` before the replay starts; 404 ``RACE_STATE_UNAVAILABLE``\nwhen nothing has been processed yet. The final state stays available after completion.",
+    "operationId": "get_race_state_api_v1_replays__replay_id__state_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RaceStateResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/drivers/{driver}": {
+   "get": {
+    "tags": [
+     "Race State"
+    ],
+    "summary": "Get one driver's current state",
+    "description": "Position, gaps, laps, tyres, pit status and recent laps of one driver.",
+    "operationId": "get_driver_state_api_v1_replays__replay_id__drivers__driver__get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9-]{1,36}$",
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DriverStateResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/events": {
+   "get": {
+    "tags": [
+     "Events"
+    ],
+    "summary": "List detected events",
+    "description": "Detections of a replay ordered by source sequence, event type and id.\n\n``driver`` matches either the primary or the secondary driver.",
+    "operationId": "list_detected_events_api_v1_replays__replay_id__events_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     },
+     {
+      "name": "event_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DetectedEventType"
+         }
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Repeatable; any of the given types",
+       "title": "Event Type"
+      },
+      "description": "Repeatable; any of the given types"
+     },
+     {
+      "name": "driver",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9-]{1,36}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     },
+     {
+      "name": "run_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Default: the latest run",
+       "title": "Run Id"
+      },
+      "description": "Default: the latest run"
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 1000,
+       "minimum": 1,
+       "description": "Page size",
+       "default": 100,
+       "title": "Limit"
+      },
+      "description": "Page size"
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "Items to skip",
+       "default": 0,
+       "title": "Offset"
+      },
+      "description": "Items to skip"
+     },
+     {
+      "name": "lap_from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "First lap (inclusive)",
+       "title": "Lap From"
+      },
+      "description": "First lap (inclusive)"
+     },
+     {
+      "name": "lap_to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Last lap (inclusive)",
+       "title": "Lap To"
+      },
+      "description": "Last lap (inclusive)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DetectedEventPageOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/events/{event_id}": {
+   "get": {
+    "tags": [
+     "Events"
+    ],
+    "summary": "Get one detected event",
+    "operationId": "get_detected_event_api_v1_replays__replay_id__events__event_id__get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     },
+     {
+      "name": "event_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Event Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DetectedEventOut"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/timing": {
+   "get": {
+    "tags": [
+     "Timing"
+    ],
+    "summary": "Lap-by-lap timing series",
+    "description": "Per-driver lap points (lap time, position, gap to leader, tyre, pit flags, sectors)\nfor laps the replay has already released.",
+    "operationId": "get_replay_timing_api_v1_replays__replay_id__timing_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "array",
+         "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,36}$"
+         },
+         "maxItems": 30
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Repeatable abbreviation or UUID; default: all drivers",
+       "title": "Driver"
+      },
+      "description": "Repeatable abbreviation or UUID; default: all drivers"
+     },
+     {
+      "name": "lap_from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "First lap (inclusive)",
+       "title": "Lap From"
+      },
+      "description": "First lap (inclusive)"
+     },
+     {
+      "name": "lap_to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Last lap (inclusive)",
+       "title": "Lap To"
+      },
+      "description": "Last lap (inclusive)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReplayTimingResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/drivers/{driver}/timing": {
+   "get": {
+    "tags": [
+     "Timing"
+    ],
+    "summary": "One driver's lap-by-lap timing series",
+    "operationId": "get_driver_timing_api_v1_replays__replay_id__drivers__driver__timing_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9-]{1,36}$",
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     },
+     {
+      "name": "lap_from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "First lap (inclusive)",
+       "title": "Lap From"
+      },
+      "description": "First lap (inclusive)"
+     },
+     {
+      "name": "lap_to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Last lap (inclusive)",
+       "title": "Lap To"
+      },
+      "description": "Last lap (inclusive)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DriverTimingResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/races/import": {
+   "post": {
+    "tags": [
+     "Data Management"
+    ],
+    "summary": "Import a historical session",
+    "description": "Import a historical session into the database (201 imported/replaced, 200 already\nimported). Operator endpoint: it downloads historical data and can be slow.",
+    "operationId": "import_race_api_v1_races_import_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RaceImportRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RaceImportResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Not Found",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Unprocessable Content",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "500": {
+      "description": "Internal Server Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     },
+     "502": {
+      "description": "Bad Gateway",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/timeline": {
+   "post": {
+    "tags": [
+     "Data Management"
+    ],
+    "summary": "Generate Timeline",
+    "description": "Build and persist the historical timeline for an imported session.",
+    "operationId": "generate_timeline_api_v1_sessions__session_id__timeline_post",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/TimelineGenerateRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TimelineSummaryResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "Data Management"
+    ],
+    "summary": "List Timeline Events",
+    "operationId": "list_timeline_events_api_v1_sessions__session_id__timeline_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Driver abbreviation filter",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation filter"
+     },
+     {
+      "name": "event_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/EventType"
+         }
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Repeatable",
+       "title": "Event Type"
+      },
+      "description": "Repeatable"
+     },
+     {
+      "name": "lap_from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Lap From"
+      }
+     },
+     {
+      "name": "lap_to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Lap To"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 1000,
+       "minimum": 1,
+       "default": 500,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TimelineEventPage"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/timeline/summary": {
+   "get": {
+    "tags": [
+     "Data Management"
+    ],
+    "summary": "Get Timeline Summary",
+    "operationId": "get_timeline_summary_api_v1_sessions__session_id__timeline_summary_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TimelineSummaryResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "DetectedEventOut": {
+    "properties": {
+     "detected_event_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Detected Event Id"
+     },
+     "event_type": {
+      "$ref": "#/components/schemas/DetectedEventType"
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version"
+     },
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Run Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "race_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Race Id"
+     },
+     "race_time_ms": {
+      "type": "integer",
+      "title": "Race Time Ms"
+     },
+     "lap_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Number"
+     },
+     "primary_driver_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Driver Id"
+     },
+     "primary_driver_abbreviation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Primary Driver Abbreviation"
+     },
+     "secondary_driver_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Secondary Driver Id"
+     },
+     "secondary_driver_abbreviation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Secondary Driver Abbreviation"
+     },
+     "severity": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Severity"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "confidence": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confidence"
+     },
+     "evidence": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Evidence"
+     },
+     "source_event_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Source Event Ids"
+     },
+     "source_sequence": {
+      "type": "integer",
+      "title": "Source Sequence"
+     },
+     "detector_name": {
+      "type": "string",
+      "title": "Detector Name"
+     },
+     "detector_version": {
+      "type": "integer",
+      "title": "Detector Version"
+     },
+     "detected_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Detected At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "detected_event_id",
+     "event_type",
+     "schema_version",
+     "replay_id",
+     "run_id",
+     "session_id",
+     "race_id",
+     "race_time_ms",
+     "lap_number",
+     "primary_driver_id",
+     "primary_driver_abbreviation",
+     "secondary_driver_id",
+     "secondary_driver_abbreviation",
+     "severity",
+     "confidence",
+     "evidence",
+     "source_event_ids",
+     "source_sequence",
+     "detector_name",
+     "detector_version",
+     "detected_at"
+    ],
+    "title": "DetectedEventOut"
+   },
+   "DetectedEventPageOut": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "run_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Run Id",
+      "description": "Run the items belong to (latest run by default)"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/DetectedEventOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "run_id",
+     "items",
+     "total",
+     "limit",
+     "offset"
+    ],
+    "title": "DetectedEventPageOut"
+   },
+   "DetectedEventType": {
+    "type": "string",
+    "enum": [
+     "BATTLE_FORMING",
+     "RAPIDLY_CLOSING",
+     "OVERTAKE",
+     "PACE_DEGRADATION",
+     "PACE_ANOMALY",
+     "PERSONAL_BEST",
+     "NEW_STINT"
+    ],
+    "title": "DetectedEventType",
+    "description": "Analytical events produced by the event detection engine.\n\nDistinct from ``EventType`` (raw historical timeline events)."
+   },
+   "DriverRaceStatus": {
+    "type": "string",
+    "enum": [
+     "NOT_STARTED",
+     "RUNNING",
+     "FINISHED",
+     "DID_NOT_FINISH"
+    ],
+    "title": "DriverRaceStatus"
+   },
+   "DriverState": {
+    "properties": {
+     "driver_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Driver Id"
+     },
+     "abbreviation": {
+      "type": "string",
+      "title": "Abbreviation"
+     },
+     "driver_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Driver Number"
+     },
+     "full_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Full Name"
+     },
+     "team_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Team Name"
+     },
+     "grid_position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Grid Position"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "previous_position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Previous Position"
+     },
+     "laps_completed": {
+      "type": "integer",
+      "title": "Laps Completed",
+      "default": 0
+     },
+     "current_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Lap"
+     },
+     "last_lap_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Lap Time Ms"
+     },
+     "last_lap_race_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Lap Race Time Ms"
+     },
+     "best_lap_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Best Lap Time Ms"
+     },
+     "best_lap_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Best Lap Number"
+     },
+     "gap_to_leader_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gap To Leader Ms"
+     },
+     "interval_to_ahead_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Interval To Ahead Ms"
+     },
+     "gap_basis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/GapBasis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "laps_behind_leader": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Laps Behind Leader"
+     },
+     "compound": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Compound"
+     },
+     "tyre_age_laps": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tyre Age Laps"
+     },
+     "stint_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stint Number"
+     },
+     "tyre_info_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tyre Info Lap"
+     },
+     "pit_status": {
+      "$ref": "#/components/schemas/PitStatus",
+      "default": "UNKNOWN"
+     },
+     "pit_stop_count": {
+      "type": "integer",
+      "title": "Pit Stop Count",
+      "default": 0
+     },
+     "last_pit_entry_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Pit Entry Lap"
+     },
+     "last_pit_entry_race_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Pit Entry Race Time Ms"
+     },
+     "last_pit_exit_race_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Pit Exit Race Time Ms"
+     },
+     "last_pit_lane_duration_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Pit Lane Duration Ms"
+     },
+     "race_status": {
+      "$ref": "#/components/schemas/DriverRaceStatus",
+      "default": "NOT_STARTED"
+     },
+     "recent_laps": {
+      "items": {
+       "$ref": "#/components/schemas/LapRecord"
+      },
+      "type": "array",
+      "title": "Recent Laps"
+     }
+    },
+    "type": "object",
+    "required": [
+     "driver_id",
+     "abbreviation"
+    ],
+    "title": "DriverState"
+   },
+   "DriverStateResponse": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "replay_status": {
+      "$ref": "#/components/schemas/ReplayStatus"
+     },
+     "source": {
+      "$ref": "#/components/schemas/StateSource"
+     },
+     "phase": {
+      "$ref": "#/components/schemas/RacePhase"
+     },
+     "current_race_time_ms": {
+      "type": "integer",
+      "title": "Current Race Time Ms"
+     },
+     "current_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Lap"
+     },
+     "last_sequence": {
+      "type": "integer",
+      "title": "Last Sequence"
+     },
+     "driver": {
+      "$ref": "#/components/schemas/DriverState"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "replay_status",
+     "source",
+     "phase",
+     "current_race_time_ms",
+     "current_lap",
+     "last_sequence",
+     "driver"
+    ],
+    "title": "DriverStateResponse"
+   },
+   "DriverSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "driver_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Driver Number"
+     },
+     "abbreviation": {
+      "type": "string",
+      "title": "Abbreviation"
+     },
+     "full_name": {
+      "type": "string",
+      "title": "Full Name"
+     },
+     "first_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Name"
+     },
+     "last_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Name"
+     },
+     "team_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Team Name"
+     },
+     "grid_position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Grid Position"
+     },
+     "finish_position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finish Position"
+     },
+     "result_status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Result Status"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "driver_number",
+     "abbreviation",
+     "full_name",
+     "first_name",
+     "last_name",
+     "team_name",
+     "grid_position",
+     "finish_position",
+     "result_status"
+    ],
+    "title": "DriverSummary"
+   },
+   "DriverTimingResponse": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "upto_sequence": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upto Sequence"
+     },
+     "lap_from": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap From"
+     },
+     "lap_to": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap To"
+     },
+     "driver": {
+      "$ref": "#/components/schemas/DriverTimingSeries"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "session_id",
+     "upto_sequence",
+     "lap_from",
+     "lap_to",
+     "driver"
+    ],
+    "title": "DriverTimingResponse"
+   },
+   "DriverTimingSeries": {
+    "properties": {
+     "driver_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Driver Id"
+     },
+     "abbreviation": {
+      "type": "string",
+      "title": "Abbreviation"
+     },
+     "points": {
+      "items": {
+       "$ref": "#/components/schemas/TimingPoint"
+      },
+      "type": "array",
+      "title": "Points",
+      "description": "Ordered by lap number"
+     }
+    },
+    "type": "object",
+    "required": [
+     "driver_id",
+     "abbreviation",
+     "points"
+    ],
+    "title": "DriverTimingSeries"
+   },
+   "ErrorResponse": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "title": "Code",
+      "description": "Stable machine-readable error code",
+      "examples": [
+       "REPLAY_NOT_FOUND"
+      ]
+     },
+     "message": {
+      "type": "string",
+      "title": "Message",
+      "description": "Human-readable, client-safe description"
+     },
+     "details": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Details",
+      "description": "Optional structured context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "ErrorResponse",
+    "description": "Body of every non-2xx response."
+   },
+   "EventType": {
+    "type": "string",
+    "enum": [
+     "RACE_STARTED",
+     "LAP_COMPLETED",
+     "SECTOR_COMPLETED",
+     "POSITION_CHANGED",
+     "PIT_ENTRY",
+     "PIT_EXIT",
+     "FASTEST_LAP",
+     "TRACK_STATUS_CHANGED",
+     "BATTLE_FORMING",
+     "PACE_DEGRADATION",
+     "PACE_ANOMALY"
+    ],
+    "title": "EventType",
+    "description": "Machine-readable race event types."
+   },
+   "FastestLap": {
+    "properties": {
+     "driver_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Driver Id"
+     },
+     "abbreviation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Abbreviation"
+     },
+     "lap_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Number"
+     },
+     "lap_time_ms": {
+      "type": "integer",
+      "title": "Lap Time Ms"
+     },
+     "race_time_ms": {
+      "type": "integer",
+      "title": "Race Time Ms"
+     }
+    },
+    "type": "object",
+    "required": [
+     "driver_id",
+     "lap_time_ms",
+     "race_time_ms"
+    ],
+    "title": "FastestLap"
+   },
+   "GapBasis": {
+    "type": "string",
+    "enum": [
+     "LAP_END"
+    ],
+    "title": "GapBasis"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "HealthResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "const": "ok",
+      "title": "Status",
+      "default": "ok"
+     }
+    },
+    "type": "object",
+    "title": "HealthResponse",
+    "description": "Liveness probe response."
+   },
+   "LapOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "driver_abbreviation": {
+      "type": "string",
+      "title": "Driver Abbreviation"
+     },
+     "lap_number": {
+      "type": "integer",
+      "title": "Lap Number"
+     },
+     "lap_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Time Ms"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "compound": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Compound"
+     },
+     "tyre_age_laps": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tyre Age Laps"
+     },
+     "stint_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stint Number"
+     },
+     "is_deleted": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Deleted"
+     },
+     "is_accurate": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Accurate"
+     },
+     "lap_start_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Start Time Ms"
+     },
+     "lap_end_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap End Time Ms"
+     },
+     "pit_in_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pit In Time Ms"
+     },
+     "pit_out_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pit Out Time Ms"
+     },
+     "is_pit_in_lap": {
+      "type": "boolean",
+      "title": "Is Pit In Lap"
+     },
+     "is_pit_out_lap": {
+      "type": "boolean",
+      "title": "Is Pit Out Lap"
+     },
+     "pit_duration_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pit Duration Ms"
+     },
+     "sectors": {
+      "items": {
+       "$ref": "#/components/schemas/SectorOut"
+      },
+      "type": "array",
+      "title": "Sectors"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "driver_abbreviation",
+     "lap_number",
+     "lap_time_ms",
+     "position",
+     "compound",
+     "tyre_age_laps",
+     "stint_number",
+     "is_deleted",
+     "is_accurate",
+     "lap_start_time_ms",
+     "lap_end_time_ms",
+     "pit_in_time_ms",
+     "pit_out_time_ms",
+     "is_pit_in_lap",
+     "is_pit_out_lap",
+     "pit_duration_ms",
+     "sectors"
+    ],
+    "title": "LapOut"
+   },
+   "LapPage": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/LapOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "total",
+     "limit",
+     "offset"
+    ],
+    "title": "LapPage"
+   },
+   "LapRecord": {
+    "properties": {
+     "lap_number": {
+      "type": "integer",
+      "title": "Lap Number"
+     },
+     "lap_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Time Ms"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "compound": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Compound"
+     },
+     "tyre_age_laps": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tyre Age Laps"
+     },
+     "stint_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stint Number"
+     },
+     "is_pit_in_lap": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Pit In Lap"
+     },
+     "is_pit_out_lap": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Pit Out Lap"
+     },
+     "is_deleted": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Deleted"
+     },
+     "is_accurate": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Accurate"
+     },
+     "track_status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Track Status"
+     },
+     "race_time_ms": {
+      "type": "integer",
+      "title": "Race Time Ms"
+     },
+     "completion_time_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Completion Time Source"
+     }
+    },
+    "type": "object",
+    "required": [
+     "lap_number",
+     "race_time_ms"
+    ],
+    "title": "LapRecord"
+   },
+   "PitStatus": {
+    "type": "string",
+    "enum": [
+     "UNKNOWN",
+     "IN_PIT",
+     "ON_TRACK"
+    ],
+    "title": "PitStatus"
+   },
+   "RaceDetail": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "season": {
+      "type": "integer",
+      "title": "Season"
+     },
+     "round": {
+      "type": "integer",
+      "title": "Round"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "official_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Official Name"
+     },
+     "country": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country"
+     },
+     "location": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Location"
+     },
+     "event_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Event Date"
+     },
+     "sessions": {
+      "items": {
+       "$ref": "#/components/schemas/SessionSummary"
+      },
+      "type": "array",
+      "title": "Sessions",
+      "description": "Imported sessions of the event"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "season",
+     "round",
+     "name",
+     "official_name",
+     "country",
+     "location",
+     "event_date",
+     "sessions"
+    ],
+    "title": "RaceDetail"
+   },
+   "RaceImportRequest": {
+    "properties": {
+     "season": {
+      "type": "integer",
+      "title": "Season",
+      "description": "Championship season year"
+     },
+     "round": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Round",
+      "description": "Championship round number"
+     },
+     "event_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Event Name",
+      "description": "FastF1 event name"
+     },
+     "session_type": {
+      "$ref": "#/components/schemas/SessionType",
+      "default": "RACE"
+     },
+     "replace": {
+      "type": "boolean",
+      "title": "Replace",
+      "description": "When true, rebuild an already-imported session",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "season"
+    ],
+    "title": "RaceImportRequest",
+    "description": "Request body for importing a historical session via FastF1."
+   },
+   "RaceImportResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "imported",
+       "already_imported",
+       "replaced"
+      ],
+      "title": "Status"
+     },
+     "race_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Race Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "season": {
+      "type": "integer",
+      "title": "Season"
+     },
+     "round": {
+      "type": "integer",
+      "title": "Round"
+     },
+     "event_name": {
+      "type": "string",
+      "title": "Event Name"
+     },
+     "session_type": {
+      "$ref": "#/components/schemas/SessionType"
+     },
+     "driver_count": {
+      "type": "integer",
+      "title": "Driver Count"
+     },
+     "lap_count": {
+      "type": "integer",
+      "title": "Lap Count"
+     },
+     "sector_count": {
+      "type": "integer",
+      "title": "Sector Count"
+     },
+     "stint_count": {
+      "type": "integer",
+      "title": "Stint Count"
+     },
+     "track_status_count": {
+      "type": "integer",
+      "title": "Track Status Count"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings"
+     },
+     "skipped_count": {
+      "type": "integer",
+      "title": "Skipped Count"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "race_id",
+     "session_id",
+     "season",
+     "round",
+     "event_name",
+     "session_type",
+     "driver_count",
+     "lap_count",
+     "sector_count",
+     "stint_count",
+     "track_status_count",
+     "warnings",
+     "skipped_count"
+    ],
+    "title": "RaceImportResponse",
+    "description": "Result of a race session import."
+   },
+   "RacePhase": {
+    "type": "string",
+    "enum": [
+     "PRE_RACE",
+     "RUNNING",
+     "CHEQUERED",
+     "COMPLETED"
+    ],
+    "title": "RacePhase"
+   },
+   "RaceStateResponse": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "replay_status": {
+      "$ref": "#/components/schemas/ReplayStatus"
+     },
+     "source": {
+      "$ref": "#/components/schemas/StateSource",
+      "description": "'live' (Redis) or 'snapshot' (PostgreSQL fallback)"
+     },
+     "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Run Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "race_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Race Id"
+     },
+     "season": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Season"
+     },
+     "round": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Round"
+     },
+     "session_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Type"
+     },
+     "phase": {
+      "$ref": "#/components/schemas/RacePhase"
+     },
+     "current_race_time_ms": {
+      "type": "integer",
+      "title": "Current Race Time Ms"
+     },
+     "current_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Lap",
+      "description": "Lap the leader is on"
+     },
+     "total_laps": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total Laps"
+     },
+     "leader_laps_completed": {
+      "type": "integer",
+      "title": "Leader Laps Completed"
+     },
+     "leader_driver_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Leader Driver Id"
+     },
+     "leader_driver_abbreviation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Leader Driver Abbreviation"
+     },
+     "track_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TrackStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "fastest_lap": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/FastestLap"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "last_sequence": {
+      "type": "integer",
+      "title": "Last Sequence",
+      "description": "Sequence of the last applied timeline event"
+     },
+     "last_event_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Event Id"
+     },
+     "total_events": {
+      "type": "integer",
+      "title": "Total Events"
+     },
+     "updated_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Updated At"
+     },
+     "drivers": {
+      "items": {
+       "$ref": "#/components/schemas/DriverState"
+      },
+      "type": "array",
+      "title": "Drivers",
+      "description": "Ordered by position"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "replay_status",
+     "source",
+     "run_id",
+     "session_id",
+     "race_id",
+     "season",
+     "round",
+     "session_type",
+     "phase",
+     "current_race_time_ms",
+     "current_lap",
+     "total_laps",
+     "leader_laps_completed",
+     "leader_driver_id",
+     "leader_driver_abbreviation",
+     "track_status",
+     "fastest_lap",
+     "last_sequence",
+     "last_event_id",
+     "total_events",
+     "updated_at",
+     "drivers"
+    ],
+    "title": "RaceStateResponse"
+   },
+   "RaceSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "season": {
+      "type": "integer",
+      "title": "Season"
+     },
+     "round": {
+      "type": "integer",
+      "title": "Round"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "official_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Official Name"
+     },
+     "country": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country"
+     },
+     "location": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Location"
+     },
+     "event_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Event Date"
+     },
+     "sessions": {
+      "items": {
+       "$ref": "#/components/schemas/SessionSummary"
+      },
+      "type": "array",
+      "title": "Sessions",
+      "description": "Imported sessions of the event"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "season",
+     "round",
+     "name",
+     "official_name",
+     "country",
+     "location",
+     "event_date",
+     "sessions"
+    ],
+    "title": "RaceSummary"
+   },
+   "ReadinessChecks": {
+    "properties": {
+     "postgres": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "error"
+      ],
+      "title": "Postgres"
+     },
+     "redis": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "error"
+      ],
+      "title": "Redis"
+     }
+    },
+    "type": "object",
+    "required": [
+     "postgres",
+     "redis"
+    ],
+    "title": "ReadinessChecks",
+    "description": "Individual dependency check results."
+   },
+   "ReadinessResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ready",
+       "not_ready"
+      ],
+      "title": "Status"
+     },
+     "checks": {
+      "$ref": "#/components/schemas/ReadinessChecks",
+      "description": "Dependency check results"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "checks"
+    ],
+    "title": "ReadinessResponse",
+    "description": "Readiness probe response."
+   },
+   "ReplayCreateRequest": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id",
+      "description": "Session to replay (its timeline must be generated)"
+     },
+     "playback_speed": {
+      "anyOf": [
+       {
+        "type": "number",
+        "exclusiveMinimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       }
+      ],
+      "title": "Playback Speed",
+      "description": "Supported: 1, 2, 5, 10, 20",
+      "default": "1"
+     }
+    },
+    "type": "object",
+    "required": [
+     "session_id"
+    ],
+    "title": "ReplayCreateRequest"
+   },
+   "ReplayResponse": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "race_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Race Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/ReplayStatus"
+     },
+     "is_completed": {
+      "type": "boolean",
+      "title": "Is Completed",
+      "description": "True once the whole timeline has been replayed"
+     },
+     "status_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status Reason"
+     },
+     "playback_speed": {
+      "type": "number",
+      "title": "Playback Speed"
+     },
+     "current_race_time_ms": {
+      "type": "integer",
+      "title": "Current Race Time Ms",
+      "description": "Virtual race clock position"
+     },
+     "current_sequence": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Sequence",
+      "description": "Sequence of the last emitted event"
+     },
+     "emitted_event_count": {
+      "type": "integer",
+      "title": "Emitted Event Count"
+     },
+     "total_events": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total Events"
+     },
+     "current_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Lap",
+      "description": "Race lap the leader is on"
+     },
+     "total_laps": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total Laps"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "started_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started At"
+     },
+     "paused_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Paused At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "session_id",
+     "race_id",
+     "status",
+     "is_completed",
+     "status_reason",
+     "playback_speed",
+     "current_race_time_ms",
+     "current_sequence",
+     "emitted_event_count",
+     "total_events",
+     "current_lap",
+     "total_laps",
+     "created_at",
+     "started_at",
+     "paused_at",
+     "ended_at"
+    ],
+    "title": "ReplayResponse"
+   },
+   "ReplaySpeedRequest": {
+    "properties": {
+     "playback_speed": {
+      "anyOf": [
+       {
+        "type": "number",
+        "exclusiveMinimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       }
+      ],
+      "title": "Playback Speed",
+      "description": "Supported: 1, 2, 5, 10, 20"
+     }
+    },
+    "type": "object",
+    "required": [
+     "playback_speed"
+    ],
+    "title": "ReplaySpeedRequest"
+   },
+   "ReplayStatus": {
+    "type": "string",
+    "enum": [
+     "CREATED",
+     "RUNNING",
+     "PAUSED",
+     "STOPPED",
+     "COMPLETED",
+     "FAILED"
+    ],
+    "title": "ReplayStatus",
+    "description": "Replay session lifecycle status (transitions live in ``app.replay.state``)."
+   },
+   "ReplayTimingResponse": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "upto_sequence": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upto Sequence",
+      "description": "Only laps released by the replay up to this timeline sequence are included"
+     },
+     "lap_from": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap From"
+     },
+     "lap_to": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap To"
+     },
+     "drivers": {
+      "items": {
+       "$ref": "#/components/schemas/DriverTimingSeries"
+      },
+      "type": "array",
+      "title": "Drivers",
+      "description": "Ordered by abbreviation"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "session_id",
+     "upto_sequence",
+     "lap_from",
+     "lap_to",
+     "drivers"
+    ],
+    "title": "ReplayTimingResponse"
+   },
+   "SeasonSummary": {
+    "properties": {
+     "season": {
+      "type": "integer",
+      "title": "Season"
+     },
+     "race_count": {
+      "type": "integer",
+      "title": "Race Count",
+      "description": "Imported races in the season"
+     }
+    },
+    "type": "object",
+    "required": [
+     "season",
+     "race_count"
+    ],
+    "title": "SeasonSummary"
+   },
+   "SectorOut": {
+    "properties": {
+     "sector_number": {
+      "type": "integer",
+      "title": "Sector Number"
+     },
+     "sector_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sector Time Ms"
+     }
+    },
+    "type": "object",
+    "required": [
+     "sector_number",
+     "sector_time_ms"
+    ],
+    "title": "SectorOut"
+   },
+   "SessionCounts": {
+    "properties": {
+     "laps": {
+      "type": "integer",
+      "title": "Laps"
+     },
+     "sectors": {
+      "type": "integer",
+      "title": "Sectors"
+     },
+     "stints": {
+      "type": "integer",
+      "title": "Stints"
+     },
+     "track_status_periods": {
+      "type": "integer",
+      "title": "Track Status Periods"
+     }
+    },
+    "type": "object",
+    "required": [
+     "laps",
+     "sectors",
+     "stints",
+     "track_status_periods"
+    ],
+    "title": "SessionCounts"
+   },
+   "SessionDetail": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "race_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Race Id"
+     },
+     "session_type": {
+      "$ref": "#/components/schemas/SessionType"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "start_time": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start Time"
+     },
+     "end_time": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End Time"
+     },
+     "drivers": {
+      "items": {
+       "$ref": "#/components/schemas/DriverSummary"
+      },
+      "type": "array",
+      "title": "Drivers"
+     },
+     "counts": {
+      "$ref": "#/components/schemas/SessionCounts"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "race_id",
+     "session_type",
+     "name",
+     "start_time",
+     "end_time",
+     "drivers",
+     "counts"
+    ],
+    "title": "SessionDetail"
+   },
+   "SessionSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "session_type": {
+      "$ref": "#/components/schemas/SessionType"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "start_time": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start Time"
+     },
+     "end_time": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End Time"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "session_type",
+     "name",
+     "start_time",
+     "end_time"
+    ],
+    "title": "SessionSummary"
+   },
+   "SessionType": {
+    "type": "string",
+    "enum": [
+     "PRACTICE_1",
+     "PRACTICE_2",
+     "PRACTICE_3",
+     "QUALIFYING",
+     "SPRINT_QUALIFYING",
+     "SPRINT",
+     "RACE"
+    ],
+    "title": "SessionType",
+    "description": "Grand Prix weekend session types."
+   },
+   "Severity": {
+    "type": "string",
+    "enum": [
+     "LOW",
+     "MEDIUM",
+     "HIGH"
+    ],
+    "title": "Severity",
+    "description": "Coarse magnitude of a detection, only where a detector documents its bands."
+   },
+   "StateSource": {
+    "type": "string",
+    "enum": [
+     "live",
+     "snapshot"
+    ],
+    "title": "StateSource"
+   },
+   "StintOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "driver_abbreviation": {
+      "type": "string",
+      "title": "Driver Abbreviation"
+     },
+     "stint_number": {
+      "type": "integer",
+      "title": "Stint Number"
+     },
+     "compound": {
+      "type": "string",
+      "title": "Compound"
+     },
+     "start_lap": {
+      "type": "integer",
+      "title": "Start Lap"
+     },
+     "end_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End Lap"
+     },
+     "tyre_age_at_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tyre Age At Start"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "driver_abbreviation",
+     "stint_number",
+     "compound",
+     "start_lap",
+     "end_lap",
+     "tyre_age_at_start"
+    ],
+    "title": "StintOut"
+   },
+   "TimelineEventOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "sequence": {
+      "type": "integer",
+      "title": "Sequence"
+     },
+     "event_type": {
+      "$ref": "#/components/schemas/EventType"
+     },
+     "race_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Race Time Ms"
+     },
+     "lap_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Number"
+     },
+     "driver_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Driver Id"
+     },
+     "driver_abbreviation": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Driver Abbreviation"
+     },
+     "payload": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Payload"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "sequence",
+     "event_type",
+     "race_time_ms",
+     "lap_number",
+     "driver_id",
+     "driver_abbreviation",
+     "payload"
+    ],
+    "title": "TimelineEventOut"
+   },
+   "TimelineEventPage": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/TimelineEventOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "total",
+     "limit",
+     "offset"
+    ],
+    "title": "TimelineEventPage"
+   },
+   "TimelineGenerateRequest": {
+    "properties": {
+     "regenerate": {
+      "type": "boolean",
+      "title": "Regenerate",
+      "default": false
+     }
+    },
+    "type": "object",
+    "title": "TimelineGenerateRequest"
+   },
+   "TimelineSummaryResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "generated",
+       "regenerated",
+       "already_generated",
+       "available"
+      ],
+      "title": "Status"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version"
+     },
+     "is_current_schema_version": {
+      "type": "boolean",
+      "title": "Is Current Schema Version"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "race_start_session_time_ms": {
+      "type": "integer",
+      "title": "Race Start Session Time Ms"
+     },
+     "event_count": {
+      "type": "integer",
+      "title": "Event Count"
+     },
+     "counts_by_type": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Counts By Type"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "session_id",
+     "schema_version",
+     "is_current_schema_version",
+     "generated_at",
+     "race_start_session_time_ms",
+     "event_count",
+     "counts_by_type",
+     "warnings"
+    ],
+    "title": "TimelineSummaryResponse"
+   },
+   "TimingPoint": {
+    "properties": {
+     "lap_number": {
+      "type": "integer",
+      "title": "Lap Number"
+     },
+     "race_time_ms": {
+      "type": "integer",
+      "title": "Race Time Ms",
+      "description": "Race time at which the driver completed the lap"
+     },
+     "lap_time_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lap Time Ms"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position",
+      "description": "Lap-end classification position"
+     },
+     "gap_to_leader_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gap To Leader Ms",
+      "description": "Time behind the first driver to complete this lap number (lap-end basis); null when unknown"
+     },
+     "compound": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Compound"
+     },
+     "tyre_age_laps": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tyre Age Laps"
+     },
+     "stint_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stint Number"
+     },
+     "is_pit_in_lap": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Pit In Lap"
+     },
+     "is_pit_out_lap": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Pit Out Lap"
+     },
+     "is_deleted": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Deleted"
+     },
+     "track_status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Track Status",
+      "description": "Track status when the lap was completed"
+     },
+     "sectors": {
+      "items": {
+       "$ref": "#/components/schemas/SectorOut"
+      },
+      "type": "array",
+      "title": "Sectors",
+      "description": "Empty when no sector times exist"
+     }
+    },
+    "type": "object",
+    "required": [
+     "lap_number",
+     "race_time_ms",
+     "lap_time_ms",
+     "position",
+     "gap_to_leader_ms",
+     "compound",
+     "tyre_age_laps",
+     "stint_number",
+     "is_pit_in_lap",
+     "is_pit_out_lap",
+     "is_deleted",
+     "track_status",
+     "sectors"
+    ],
+    "title": "TimingPoint"
+   },
+   "TrackStatus": {
+    "type": "string",
+    "enum": [
+     "GREEN",
+     "YELLOW",
+     "SAFETY_CAR",
+     "VIRTUAL_SAFETY_CAR",
+     "VIRTUAL_SAFETY_CAR_ENDING",
+     "RED_FLAG",
+     "UNKNOWN"
+    ],
+    "title": "TrackStatus",
+    "description": "Track status derived from FastF1 track-status codes."
+   },
+   "TrackStatusOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "race_time_ms": {
+      "type": "integer",
+      "title": "Race Time Ms"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TrackStatus"
+     },
+     "source_code": {
+      "type": "string",
+      "title": "Source Code"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     },
+     "sequence": {
+      "type": "integer",
+      "title": "Sequence"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "race_time_ms",
+     "status",
+     "source_code",
+     "message",
+     "sequence"
+    ],
+    "title": "TrackStatusOut"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ },
+ "tags": [
+  {
+   "name": "Races",
+   "description": "Imported historical races, sessions, drivers and laps"
+  },
+  {
+   "name": "Replays",
+   "description": "Create and control replays; live WebSocket stream"
+  },
+  {
+   "name": "Race State",
+   "description": "Authoritative current race state of a replay"
+  },
+  {
+   "name": "Events",
+   "description": "Detected race events with structured evidence"
+  },
+  {
+   "name": "Timing",
+   "description": "Lap-by-lap data series for charts"
+  },
+  {
+   "name": "Data Management",
+   "description": "Operator endpoints: import and timeline build"
+  },
+  {
+   "name": "Health",
+   "description": "Liveness and readiness probes (unversioned)"
+  }
+ ]
+}

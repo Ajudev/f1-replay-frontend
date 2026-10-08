@@ -1,0 +1,30 @@
+import type { components } from "./schema"
+
+type S = components["schemas"]
+
+export type SeasonSummary = S["SeasonSummary"]
+export type RaceSummary = S["RaceSummary"]
+export type RaceDetail = S["RaceDetail"]
+export type DriverSummary = S["DriverSummary"]
+export type SessionDetail = S["SessionDetail"]
+export type LapPage = S["LapPage"]
+export type LapOut = S["LapOut"]
+export type StintOut = S["StintOut"]
+export type TrackStatusOut = S["TrackStatusOut"]
+
+export type Replay = S["ReplayResponse"]
+export type ReplayStatus = S["ReplayStatus"]
+export type RaceState = S["RaceStateResponse"]
+export type DriverState = S["DriverState"]
+export type DriverStateResponse = S["DriverStateResponse"]
+export type RecentLap = S["LapRecord"]
+export type DetectedEvent = S["DetectedEventOut"]
+export type DetectedEventPage = S["DetectedEventPageOut"]
+export type ReplayTiming = S["ReplayTimingResponse"]
+export type DriverTiming = S["DriverTimingResponse"]
+export type DriverTimingSeries = S["DriverTimingSeries"]
+export type TimingPoint = S["TimingPoint"]
+export type ErrorBody = S["ErrorResponse"]
+
+export type ReplayCreateRequest = S["ReplayCreateRequest"]
+export type ReplaySpeedRequest = S["ReplaySpeedRequest"]
