@@ -49,6 +49,15 @@ src/lib/replay/           live reducer, Zustand live store, useReplayLiveConnect
 docs/                     openapi.json, backend-integration.md
 ```
 
+## Race explorer
+
+- `/races`: seasons from the backend (newest first, `?season=`), client-side search, race cards.
+- `/races/[raceId]`: race info, drivers, session choice, **Create Replay** (creates only; does not start).
+- `/replays/[replayId]`: status summary; live dashboard is not built yet.
+- Limitations: lists only races imported into the backend; no circuit name or team colour; the import
+  endpoint is never called; only `RACE` and `SPRINT` sessions are replayable from the UI.
+- Tests: `npm test` (Vitest + React Testing Library); race UI tests are in `src/components/races/`.
+
 ## Architecture and data flow
 
 ```text

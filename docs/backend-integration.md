@@ -105,6 +105,23 @@ default; the attempt counter resets only when a `SNAPSHOT` arrives, since the ba
 
 Backend default allows `http://localhost:3000`. Other origins need backend configuration.
 
+## Race explorer and replay creation
+
+Routes: `/races` (season selector via `?season=`, optional `?q=` search), `/races/[raceId]` (detail, sessions,
+drivers, Create Replay), `/replays/[replayId]` (status summary only; no controls or WebSocket yet).
+
+- `GET /seasons`, `GET /races?season=`, `GET /races/{id}`, `GET /races/{id}/drivers?session_type=` feed the
+  explorer. These return only races already imported into PostgreSQL; there is no catalogue of
+  not-yet-imported races, no pagination and no circuit name or team colour field. Search is client-side
+  over name, official name, country and location.
+- `POST /replays` is sent with `{session_id, playback_speed: 1}` (the generated type requires speed). It
+  does not start playback; `/start` is never called. The frontend navigates to `/replays/{response.id}`
+  only after success.
+- Only `RACE` and `SPRINT` sessions are offered for replay, matching the backend timeline builder's
+  `SUPPORTED_SESSION_TYPES`; other types are shown as unavailable. A timeline must also be generated, or
+  creation fails with the backend's 404/409 message.
+- `POST /races/import` is deliberately unused: the UI never triggers ingestion.
+
 ## Known gaps
 
 - No running backend was available: live REST responses and WebSocket frames are not verified, only

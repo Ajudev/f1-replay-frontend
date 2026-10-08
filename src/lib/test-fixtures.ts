@@ -1,4 +1,4 @@
-import type { DriverState, RaceState, RecentLap, Replay } from "@/lib/api/types"
+import type { DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
 import type { ServerMessage } from "@/lib/ws/messages"
 
 export const REPLAY_ID = "11111111-1111-4111-8111-111111111111"
@@ -51,3 +51,22 @@ export function msg<T extends ServerMessage["type"]>(
     emitted_at: "2024-01-01T00:00:00Z", payload,
   } as Extract<ServerMessage, { type: T }>
 }
+
+export const RACE_ID = "22222222-2222-4222-8222-222222222222"
+export const RACE_SESSION_ID = "33333333-3333-4333-8333-333333333333"
+export const QUALI_SESSION_ID = "44444444-4444-4444-8444-444444444444"
+
+export const raceSummary = (over: Partial<RaceSummary> = {}): RaceSummary => ({
+  id: RACE_ID, season: 2026, round: 1, name: "Australian Grand Prix", official_name: "Formula 1 Australian Grand Prix 2026",
+  country: "Australia", location: "Melbourne", event_date: "2026-03-08",
+  sessions: [
+    { id: QUALI_SESSION_ID, session_type: "QUALIFYING", name: "Qualifying", start_time: "2026-03-07T05:00:00Z", end_time: null },
+    { id: RACE_SESSION_ID, session_type: "RACE", name: "Race", start_time: "2026-03-08T04:00:00Z", end_time: null },
+  ],
+  ...over,
+})
+
+export const driverSummary = (over: Partial<DriverSummary> = {}): DriverSummary => ({
+  id: "d1", driver_number: 1, abbreviation: "VER", full_name: "Max Verstappen", first_name: "Max", last_name: "Verstappen",
+  team_name: "Red Bull Racing", grid_position: 1, finish_position: 1, result_status: "Finished", ...over,
+})
