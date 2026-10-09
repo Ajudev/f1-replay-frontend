@@ -13,6 +13,7 @@ import type { Replay } from "@/lib/api/types"
 import { replayStatusStyle } from "@/lib/domain-styles"
 import { useRace, useReplay, useReplayControl, type ReplayCommand } from "@/lib/query/hooks"
 import { selectEffectiveReplay } from "@/lib/replay/effective-replay"
+import { Analytics } from "./analytics"
 import { LiveTiming } from "./timing-tower"
 import { useLiveStore } from "@/lib/replay/live-store"
 import { useReplayLiveConnection } from "@/lib/replay/use-replay-live-connection"
@@ -47,6 +48,7 @@ function Dashboard({ replayId }: { replayId: string }) {
       {q.isRefetchError && <p role="status" className="text-sm text-warning">Live updates interrupted: {errorMessage(q.error)} Showing the last known state.</p>}
       <Controls replay={replay} />
       <LiveTiming onRetryEvents={retryEvents} />
+      <Analytics replayId={replayId} />
     </div>
   )
 }

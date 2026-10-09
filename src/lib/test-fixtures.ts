@@ -1,4 +1,4 @@
-import type { DetectedEvent, DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
+import type { DetectedEvent, DriverTimingSeries, TimingPoint, DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
 import type { ServerMessage } from "@/lib/ws/messages"
 
 export const REPLAY_ID = "11111111-1111-4111-8111-111111111111"
@@ -109,3 +109,11 @@ export const EVIDENCE: Record<string, Record<string, unknown>> = {
   NEW_STINT: { stint_number: 2, compound: "HARD", previous_stint_number: 1, previous_compound: "MEDIUM", compound_changed: true, starting_lap: 21, tyre_age_laps: 0, pit_lane_duration_ms: 22345, pit_stop_count: 1, source_event_type: "PIT_EXIT" },
 }
 
+
+/** Released timing point (backend TimingPoint) with green-flag defaults. */
+export const tp = (lap: number, over: Partial<TimingPoint> = {}): TimingPoint => ({
+  lap_number: lap, race_time_ms: lap * 90_000, lap_time_ms: 90_000 + lap, position: 1, gap_to_leader_ms: 0, compound: "SOFT",
+  tyre_age_laps: lap, stint_number: 1, is_pit_in_lap: false, is_pit_out_lap: false, is_deleted: false, track_status: "GREEN", sectors: [], ...over,
+})
+/** Timing series for one driver. */
+export const series = (id: string, points: TimingPoint[]): DriverTimingSeries => ({ driver_id: id, abbreviation: id.toUpperCase(), points })

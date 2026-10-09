@@ -155,4 +155,11 @@ describe("EventFeed", () => {
     send(ev("OVERTAKE", 2), ev("OVERTAKE", 3))
     expect(screen.getByRole("button", { name: "2 new events" })).toBeInTheDocument()
   })
+
+  it("Show on charts highlights the event and compares its drivers", async () => {
+    render(<EventFeed />)
+    send(ev("PACE_ANOMALY", 1, { primary_driver_id: "ver", secondary_driver_id: null }))
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show on charts" }))
+    expect(liveStore.getState()).toMatchObject({ highlightedEventId: "e1", comparisonDriverIds: ["ver"] })
+  })
 })

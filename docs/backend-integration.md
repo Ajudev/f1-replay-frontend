@@ -237,6 +237,33 @@ drivers, Create Replay), `/replays/[replayId]` (playback dashboard, REST plus li
   and Status columns are hidden (details are in the panel); the table scrolls horizontally.
 - Limitations: no sector times and no team colours (not in the API); lap history limited to `recent_laps`.
 
+## Analytics
+
+- Component `Analytics` (`src/components/replay/analytics.tsx`), below the live timing. Tabs: lap times, position,
+  gap, tyre stints, pace evidence. Every chart has a text alternative (`role="img"` summary and a "Data table").
+- Endpoint: `GET /api/v1/replays/{id}/timing` (all drivers, no filters). The backend returns only laps the replay
+  has released. `/sessions/{id}/stints`, `/sessions/{id}/laps`, `/races/{id}/laps` and
+  `DriverSummary.finish_position` are full-race data and are never used here.
+- Query: key `["replays", id, "timing", {}, runId]`, `staleTime: Infinity`. It refetches when the sum of
+  `laps_completed` in the live state rises (a lap was released), at most once per second, never on clock ticks.
+  Previous data is kept only within the same run; a restart (new `runId`) starts empty. Timing is not copied into
+  the store. `useReplayTiming` in `src/lib/analytics/use-replay-timing.ts`.
+- Filtering: the cursor is the live store's `clock.current_race_time_ms`, else `replay`, else `state` (never wall
+  clock). Points with `race_time_ms` above the cursor are dropped, as are detected events. No cursor means nothing
+  is shown. This is a second guard behind the backend's own filter, applied per point, not per lap number.
+- Gap: `gap_to_leader_ms` as the backend returns it (time behind the first driver to complete that lap number,
+  lap-end basis); lapped-driver values are not reinterpreted. Driver versus driver (exactly two selected): on each
+  lap where both gaps are known, `gapB - gapA`; the table says who is ahead. Never derived from lap times.
+- Stints: derived from released points, grouped by `stint_number` (or compound when it is null), ending at the last
+  released lap. Unknown compounds show "Unknown compound".
+- Gaps in data: null values break the line (no bridging, no zeros). Deleted, pit-in, pit-out and non-green laps are
+  kept and flagged in tooltip and table.
+- Selection: `comparisonDriverIds` in the live store (max 4, selection order sets the colour, dash and marker).
+  Cleared on replay switch, kept across a restart. "Show on charts" in the event feed sets `highlightedEventId`
+  and adds the event's drivers while slots remain. `selectedDriverId` is separate and unchanged.
+- Limitations: no team colours (not in the API); gap is lap-end only, not mid-lap; charts do not seek; no
+  E2E/Playwright coverage yet (unit and component tests only).
+
 ## Known gaps
 
 - No seeking or lap skipping (not supported by the backend).

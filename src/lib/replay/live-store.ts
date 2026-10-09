@@ -8,6 +8,10 @@ export interface LiveStore extends LiveState {
   replayId: string | null
   connectionStatus: SocketStatus
   selectedDriverId: string | null
+  /** Drivers compared in the analytics charts; slot = index and is fixed (removal leaves a null hole). Survives a restart; cleared by reset. */
+  comparisonDriverIds: (string | null)[]
+  /** Event picked in the feed to highlight on the charts; ignored when it is no longer in `events`. */
+  highlightedEventId: string | null
   /** The last event backfill for the current replay and run failed; cleared by the next success. */
   eventsBackfillError: boolean
   apply: (msg: ServerMessage) => void
@@ -18,10 +22,28 @@ export interface LiveStore extends LiveState {
   setEventsBackfillError: (replayId: string, runId: string) => void
   setConnectionStatus: (s: SocketStatus) => void
   selectDriver: (id: string | null) => void
+  addComparison: (id: string) => void
+  removeComparison: (id: string) => void
+  /** Highlights an event and adds its drivers to the comparison while slots remain. */
+  highlightEvent: (e: Pick<DetectedEvent, "detected_event_id" | "primary_driver_id" | "secondary_driver_id">) => void
   reset: (replayId: string | null) => void
 }
 
-const blank = { ...initialLiveState, replayId: null, connectionStatus: "idle" as SocketStatus, selectedDriverId: null, eventsBackfillError: false }
+const blank = { ...initialLiveState, replayId: null, connectionStatus: "idle" as SocketStatus, selectedDriverId: null, comparisonDriverIds: [] as string[], highlightedEventId: null as string | null, eventsBackfillError: false }
+
+export const MAX_COMPARISON = 4
+
+/** Puts each new id in the first free slot (a hole, else the end) while fewer than MAX_COMPARISON are used. */
+export function fillSlots(cur: (string | null)[], ids: (string | null)[]): (string | null)[] {
+  const out = [...cur]
+  for (const id of ids) {
+    if (!id || out.includes(id)) continue
+    const hole = out.indexOf(null)
+    if (hole >= 0) out[hole] = id
+    else if (out.length < MAX_COMPARISON) out.push(id)
+  }
+  return out
+}
 
 export function createLiveStore() {
   return createStore<LiveStore>()((set) => ({
@@ -48,6 +70,19 @@ export function createLiveStore() {
       set((s) => (s.replayId !== replayId || s.runId !== runId || s.eventsBackfillError ? s : { eventsBackfillError: true })),
     setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
     selectDriver: (selectedDriverId) => set({ selectedDriverId }),
+    addComparison: (id) =>
+      set((s) => {
+        const next = fillSlots(s.comparisonDriverIds, [id])
+        return next.length === s.comparisonDriverIds.length && next.every((x, i) => x === s.comparisonDriverIds[i]) ? s : { comparisonDriverIds: next }
+      }),
+    removeComparison: (id) =>
+      set((s) => {
+        const next = s.comparisonDriverIds.map((x) => (x === id ? null : x))
+        while (next.length && next[next.length - 1] === null) next.pop()
+        return { comparisonDriverIds: next }
+      }),
+    highlightEvent: (e) =>
+      set((s) => ({ highlightedEventId: e.detected_event_id, comparisonDriverIds: fillSlots(s.comparisonDriverIds, [e.primary_driver_id, e.secondary_driver_id]) })),
     reset: (replayId) => set({ ...blank, replayId }),
   }))
 }

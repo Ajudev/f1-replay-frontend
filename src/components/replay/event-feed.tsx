@@ -150,6 +150,12 @@ const EventCard = memo(function EventCard({ event: e, expanded, onToggle }: { ev
         {expanded ? <ChevronDown aria-hidden className="size-3.5" /> : <ChevronRight aria-hidden className="size-3.5" />}
         {expanded ? "Hide details" : "Show details"}
       </button>
+      {e.primary_driver_id && (
+        <button type="button" onClick={() => liveStore.getState().highlightEvent(e)}
+          className="ml-3 mt-1 inline-flex items-center gap-1 rounded text-xs text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring">
+          Show on charts
+        </button>
+      )}
       {expanded && (
         <div id={detailsId} className="mt-1 space-y-1 border-t pt-1">
           {lines.length > 0 ? (
