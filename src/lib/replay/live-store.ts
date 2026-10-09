@@ -24,7 +24,7 @@ export interface LiveStore extends LiveState {
   selectDriver: (id: string | null) => void
   addComparison: (id: string) => void
   removeComparison: (id: string) => void
-  /** Highlights an event and adds its drivers to the comparison while slots remain. */
+  /** Highlights an event, selects its primary driver and adds its drivers to the comparison while slots remain. */
   highlightEvent: (e: Pick<DetectedEvent, "detected_event_id" | "primary_driver_id" | "secondary_driver_id">) => void
   reset: (replayId: string | null) => void
 }
@@ -82,7 +82,7 @@ export function createLiveStore() {
         return { comparisonDriverIds: next }
       }),
     highlightEvent: (e) =>
-      set((s) => ({ highlightedEventId: e.detected_event_id, comparisonDriverIds: fillSlots(s.comparisonDriverIds, [e.primary_driver_id, e.secondary_driver_id]) })),
+      set((s) => ({ highlightedEventId: e.detected_event_id, selectedDriverId: e.primary_driver_id ?? s.selectedDriverId, comparisonDriverIds: fillSlots(s.comparisonDriverIds, [e.primary_driver_id, e.secondary_driver_id]) })),
     reset: (replayId) => set({ ...blank, replayId }),
   }))
 }

@@ -30,7 +30,17 @@ const FORMAT: Record<Metric, (v: number | null) => string> = {
 
 export function Analytics({ replayId }: { replayId: string }) {
   const q = useReplayTiming(replayId)
-  const cursor = useLiveStore(selectCursor)
+  // Snap the cursor down to the latest point/event time it has reached: the visible set is identical, but
+  // clock frames that cross no boundary leave the value (and this component) untouched.
+  const times = useMemo(() => q.data?.drivers.flatMap((d) => d.points.map((p) => p.race_time_ms)) ?? [], [q.data])
+  const cursor = useLiveStore((s) => {
+    const c = selectCursor(s)
+    if (c == null) return null
+    let snap = 0
+    for (const t of times) if (t <= c && t > snap) snap = t
+    for (const e of s.events) if (e.race_time_ms <= c && e.race_time_ms > snap) snap = e.race_time_ms
+    return snap
+  })
   const events = useLiveStore((s) => s.events)
   const ids = useLiveStore((s) => s.comparisonDriverIds)
   const highlightedId = useLiveStore((s) => s.highlightedEventId)

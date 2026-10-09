@@ -13,6 +13,7 @@ import {
 } from "@/lib/replay/event-format"
 import { MAX_EVENTS } from "@/lib/replay/live-reducer"
 import { liveStore, useLiveStore } from "@/lib/replay/live-store"
+import { cn } from "@/lib/utils"
 import { formatRaceClock } from "@/lib/replay/playback"
 
 const ICONS: Record<string, LucideIcon> = {
@@ -57,6 +58,19 @@ export function EventFeed({ onRetry }: { onRetry?: () => void } = {}) {
     const added = visible.findIndex((e) => e.detected_event_id === prev)
     setUnseen((n) => n + (added === -1 ? 1 : added))
   }, [topId, visible])
+
+  // Highlight events that arrive after the first batch (backfill/snapshot); known ids never re-flash.
+  const known = useRef<Set<string> | null>(null)
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set())
+  useEffect(() => {
+    if (known.current === null) { if (events.length) known.current = new Set(events.map((e) => e.detected_event_id)); return }
+    const prev = known.current
+    const added = events.filter((e) => !prev.has(e.detected_event_id)).map((e) => e.detected_event_id)
+    const cur = new Set(events.map((e) => e.detected_event_id)) // pruned to current ids
+    known.current = cur
+    // Prune too: under reduced motion animationend never fires, so ids would otherwise linger.
+    if (added.length) setFresh((f) => new Set([...f, ...added].filter((id) => cur.has(id))))
+  }, [events])
 
   const reset = () => { setCategory("all"); setDriverId(null) }
   const toTop = () => { scroller.current?.scrollTo({ top: 0 }); setUnseen(0) }
@@ -112,7 +126,7 @@ export function EventFeed({ onRetry }: { onRetry?: () => void } = {}) {
           <div ref={scroller} tabIndex={0} aria-label="Event list" className="max-h-[32rem] overflow-y-auto rounded-md focus-visible:outline-2 focus-visible:outline-ring" onScroll={(e) => { if (e.currentTarget.scrollTop <= TOP_THRESHOLD) setUnseen(0) }}>
             <ul className="space-y-2">
               {visible.map((e) => (
-                <EventCard key={e.detected_event_id} event={e} expanded={expandedId === e.detected_event_id}
+                <EventCard key={e.detected_event_id} event={e} fresh={fresh.has(e.detected_event_id)} onFlashEnd={() => setFresh((f) => { const n = new Set(f); n.delete(e.detected_event_id); return n })} expanded={expandedId === e.detected_event_id}
                   onToggle={() => setExpandedId((id) => (id === e.detected_event_id ? null : e.detected_event_id))} />
               ))}
             </ul>
@@ -123,14 +137,14 @@ export function EventFeed({ onRetry }: { onRetry?: () => void } = {}) {
   )
 }
 
-const EventCard = memo(function EventCard({ event: e, expanded, onToggle }: { event: DetectedEvent; expanded: boolean; onToggle: () => void }) {
+const EventCard = memo(function EventCard({ event: e, fresh, onFlashEnd, expanded, onToggle }: { event: DetectedEvent; fresh: boolean; onFlashEnd: () => void; expanded: boolean; onToggle: () => void }) {
   const Icon = ICONS[eventCategory(e.event_type) ?? ""] ?? CircleHelp
   const sev = e.severity ? severityStyle(e.severity) : null
   const summary = eventSummary(e)
   const lines = expanded ? evidenceLines(e) : []
   const detailsId = `event-details-${e.detected_event_id}`
   return (
-    <li className="rounded-md border bg-card p-2 text-sm">
+    <li onAnimationEnd={fresh ? onFlashEnd : undefined} className={cn("rounded-md border bg-card p-2 text-sm", fresh && "flash-new motion-reduce:animate-none")}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="inline-flex items-center gap-1.5 font-medium"><Icon aria-hidden className="size-4" />{eventLabel(e.event_type)}</span>
         {sev && <Badge variant="outline" className={sev.className}><sev.icon aria-hidden className="size-3" />{sev.label} severity</Badge>}

@@ -13,7 +13,9 @@ import type { Replay } from "@/lib/api/types"
 import { replayStatusStyle } from "@/lib/domain-styles"
 import { useRace, useReplay, useReplayControl, type ReplayCommand } from "@/lib/query/hooks"
 import { selectEffectiveReplay } from "@/lib/replay/effective-replay"
+import { SectionBoundary } from "@/components/section-boundary"
 import { Analytics } from "./analytics"
+import { RaceStatusBar } from "./race-status-bar"
 import { LiveTiming } from "./timing-tower"
 import { useLiveStore } from "@/lib/replay/live-store"
 import { useReplayLiveConnection } from "@/lib/replay/use-replay-live-connection"
@@ -33,32 +35,29 @@ export function ReplayDashboard({ replayId }: { replayId: string }) {
 }
 
 function Dashboard({ replayId }: { replayId: string }) {
+  // Only REST query state is read here; clock/live fields are subscribed inside ReplayBar so frames don't re-render the panels.
   const q = useReplay(replayId)
   const { retry, retryEvents } = useReplayLiveConnection(replayId)
-  const replay = useEffectiveReplay(q.data)
   if (q.isPending) return <div role="status" aria-busy="true" aria-label="Loading replay"><Skeleton className="h-40" /></div>
-  if (!q.data || !replay) {
+  if (!q.data) {
     if (q.error instanceof ApiError && q.error.status === 404) return <EmptyState title="Replay not found" description="This replay does not exist."><Link href="/races" className="text-sm text-primary hover:underline">Browse races</Link></EmptyState>
     return <ErrorState title="Could not load replay" message={errorMessage(q.error)} onRetry={() => q.refetch()} />
   }
   return (
     <div className="space-y-4">
-      <Header replay={replay} />
-      <ConnectionStatus onRetry={retry} />
-      {q.isRefetchError && <p role="status" className="text-sm text-warning">Live updates interrupted: {errorMessage(q.error)} Showing the last known state.</p>}
-      <Controls replay={replay} />
+      <ReplayBar rest={q.data} onRetry={retry} refetchError={q.isRefetchError ? errorMessage(q.error) : null} />
       <LiveTiming onRetryEvents={retryEvents} />
-      <Analytics replayId={replayId} />
+      <SectionBoundary label="Analytics"><Analytics replayId={replayId} /></SectionBoundary>
     </div>
   )
 }
 
-function useEffectiveReplay(rest: Replay | undefined): Replay | undefined {
+function useEffectiveReplay(rest: Replay): Replay {
   const replayId = useLiveStore((s) => s.replayId)
   const connectionStatus = useLiveStore((s) => s.connectionStatus)
   const live = useLiveStore((s) => s.replay)
   const clock = useLiveStore((s) => s.clock)
-  return rest && selectEffectiveReplay(rest, { replayId, connectionStatus, replay: live, clock })
+  return selectEffectiveReplay(rest, { replayId, connectionStatus, replay: live, clock })
 }
 
 function ConnectionStatus({ onRetry }: { onRetry: () => void }) {
@@ -88,66 +87,75 @@ function ConnectionStatus({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-function Header({ replay: r }: { replay: Replay }) {
-  const race = useRace(r.race_id)
-  const session = race.data?.sessions.find((s) => s.id === r.session_id)
+function Header({ raceId, sessionId }: { raceId: string; sessionId: string }) {
+  const race = useRace(raceId)
+  const session = race.data?.sessions.find((s) => s.id === sessionId)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <p className="text-lg font-semibold">
+      <p className="font-semibold">
         {race.data ? <>{race.data.name} <span className="tabular text-muted-foreground">{race.data.season}</span></> : "Race"}
         {session && <span className="text-muted-foreground"> · {session.name}</span>}
       </p>
-      <Link className="text-sm text-primary hover:underline" href={`/races/${r.race_id}`}>Race details</Link>
+      <Link className="text-sm text-primary hover:underline" href={`/races/${raceId}`}>Race details</Link>
     </div>
   )
 }
 
-function Controls({ replay: r }: { replay: Replay }) {
+function ReplayBar({ rest, onRetry, refetchError }: { rest: Replay; onRetry: () => void; refetchError: string | null }) {
+  const r = useEffectiveReplay(rest)
   const control = useReplayControl(r.id)
   const busy = control.isPending
   const run = (c: ReplayCommand) => control.mutate(c)
   const progress = lapProgress(r)
   const lapText = r.current_lap == null && r.total_laps == null ? "Not started" : `Lap ${r.current_lap ?? "—"} / ${r.total_laps ?? "—"}`
   return (
-    <section aria-label="Playback" className="space-y-4 rounded-lg border bg-panel p-4">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+    <section aria-label="Playback" className="md:sticky md:top-0 z-20 space-y-2 rounded-lg border bg-panel p-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <Header raceId={rest.race_id} sessionId={rest.session_id} />
+        <ConnectionStatus onRetry={onRetry} />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <StatusIndicator treatment={replayStatusStyle(r.status)} />
-        <p className="tabular text-2xl font-semibold" aria-label="Race clock">{formatRaceClock(r.current_race_time_ms)}</p>
-        <p className="tabular text-lg">{lapText}</p>
+        <p className="tabular text-xl font-semibold" aria-label="Race clock">{formatRaceClock(r.current_race_time_ms)}</p>
+        <p className="tabular">{lapText}</p>
+        <RaceStatusBar />
       </div>
-      {r.status_reason && <p className="text-sm text-muted-foreground">Reason: {r.status_reason}</p>}
-      <div>
-        {progress == null ? (
-          <p className="text-sm text-muted-foreground">Lap progress unavailable</p>
-        ) : (
-          <>
-            <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span id="lap-progress">Lap progress</span><span className="tabular">{progress}%</span></div>
-            <div role="progressbar" aria-labelledby="lap-progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
-            </div>
-          </>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {ACTIONS.map(({ action, label, icon: Icon }) => {
-          const allowed = canDo(r.status, action)
-          const active = busy && control.variables === action
-          return (
-            <Button key={action} variant={allowed ? "default" : "outline"} disabled={!allowed || busy} onClick={() => run(action)}
-              title={allowed ? undefined : `${label} is not available while ${replayStatusStyle(r.status).label.toLowerCase()}`}>
-              {active ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Icon aria-hidden />}
-              {label}
-            </Button>
-          )
-        })}
-      </div>
-      <p className="text-xs text-muted-foreground">Stop ends the replay; only Restart can play it again.</p>
-      <div role="group" aria-label="Playback speed" className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Speed</span>
-        {PLAYBACK_SPEEDS.map((s) => (
-          <Button key={s} size="sm" variant={r.playback_speed === s ? "default" : "outline"} aria-pressed={r.playback_speed === s}
-            disabled={busy} onClick={() => run({ speed: s })}>{s}x</Button>
-        ))}
+      {r.status === "FAILED" && <p role="alert" className="text-sm text-destructive">Replay failed{r.status_reason ? `: ${r.status_reason}` : "."}</p>}
+      {r.status === "COMPLETED" && <p className="text-sm text-muted-foreground">Replay complete — final standings shown.</p>}
+      {r.status_reason && r.status !== "FAILED" && <p className="text-sm text-muted-foreground">Reason: {r.status_reason}</p>}
+      {refetchError && <p role="status" className="text-sm text-warning">Live updates interrupted: {refetchError} Showing the last known state.</p>}
+      {progress == null ? (
+        <p className="text-xs text-muted-foreground">Lap progress unavailable</p>
+      ) : (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span id="lap-progress">Lap progress</span>
+          <div role="progressbar" aria-labelledby="lap-progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="tabular">{progress}%</span>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap gap-1.5" title="Stop ends the replay; only Restart can play it again.">
+          {ACTIONS.map(({ action, label, icon: Icon }) => {
+            const allowed = canDo(r.status, action)
+            const active = busy && control.variables === action
+            return (
+              <Button key={action} size="sm" variant={allowed ? "default" : "outline"} disabled={!allowed || busy} onClick={() => run(action)}
+                title={allowed ? undefined : `${label} is not available while ${replayStatusStyle(r.status).label.toLowerCase()}`}>
+                {active ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Icon aria-hidden />}
+                {label}
+              </Button>
+            )
+          })}
+        </div>
+        <div role="group" aria-label="Playback speed" className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm text-muted-foreground">Speed</span>
+          {PLAYBACK_SPEEDS.map((s) => (
+            <Button key={s} size="sm" variant={r.playback_speed === s ? "default" : "outline"} aria-pressed={r.playback_speed === s}
+              disabled={busy} onClick={() => run({ speed: s })}>{s}x</Button>
+          ))}
+        </div>
       </div>
       {control.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(control.error)}</p>}
     </section>

@@ -139,5 +139,6 @@ describe("comparison selection", () => {
     s.getState().highlightEvent({ detected_event_id: "e1", primary_driver_id: "nor", secondary_driver_id: "lec" })
     expect(s.getState().comparisonDriverIds).toEqual(["x", "y", "z", "nor"])
     expect(s.getState().highlightedEventId).toBe("e1")
+    expect(s.getState().selectedDriverId).toBe("nor")
   })
 })

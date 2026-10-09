@@ -93,7 +93,7 @@ describe("controls matrix", () => {
       if ((enabled as readonly string[]).includes(n)) expect(btn(n)).toBeEnabled()
       else expect(btn(n)).toBeDisabled()
     }
-    expect(screen.getByText(/only Restart can play it again/)).toBeInTheDocument()
+    expect(screen.getByTitle(/only Restart can play it again/)).toBeInTheDocument()
   })
 })
 

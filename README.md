@@ -79,7 +79,17 @@ State ownership:
   lower sequence are dropped (equal sequences apply, as several messages share one), a different run id
   sets `needsResync`, and `useReplayLiveConnection` answers with `RESYNC`.
 
-`useReplayLiveConnection(replayId)` is not mounted by any page yet. It drives a single global `liveStore`, so mount only one per page.
+`useReplayLiveConnection(replayId)` is mounted by the replay dashboard (`ReplayDashboard`). It drives a single global `liveStore`, so mount only one per page.
+
+## Replay dashboard
+
+- **Layout:** one sticky replay bar (race identity, connection, replay status, race clock, lap X/Y, track status and fastest lap, read-only lap progress, playback buttons, speed), then the timing tower, driver details, event feed and analytics.
+- **State ownership:** the REST replay query (`useReplay`) owns the initial/fallback replay; `liveStore` owns clock, snapshot, deltas, events and selection. The bar merges them via `selectEffectiveReplay`; the backend stays authoritative. FAILED shows an alert with the backend `status_reason`; COMPLETED shows a final-standings note and clears nothing.
+- **Selection:** `selectedDriverId` is the primary driver (timing tower, details). `comparisonDriverIds` are the analytics slots (max 4). "Show on charts" on an event highlights it, selects its primary driver and fills comparison slots; it never touches the replay clock.
+- **Animations:** position gains/losses flash the row and events that arrive after the first batch flash their card (CSS keyframes in `globals.css`, 1.5s, background only). `motion-reduce:animate-none` plus the global reduced-motion rule disable them. Snapshots clear position changes, so the initial snapshot, reconnect and restart do not animate. The event feed never auto-scrolls. Events arriving before the first non-empty batch is seen are treated as backfill.
+- **Error boundaries:** `SectionBoundary` wraps the timing tower, driver details, event feed and analytics separately; a throw shows an error state with "Try again" and leaves the rest and the replay bar working.
+- **Render performance:** `Dashboard` reads only REST query state; clock/live fields are subscribed in `ReplayBar`. A test (`replay-dashboard.render.test.tsx`) counts renders and asserts a `REPLAY_CLOCK` frame does not re-render LiveTiming or Analytics. Only render counts were measured, not wall-clock timings.
+- **Limitations:** no seeking or lap skipping (backend does not support it); no Playwright E2E in this repo.
 
 ## Design system conventions
 

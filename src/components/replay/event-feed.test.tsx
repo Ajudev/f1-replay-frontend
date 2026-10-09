@@ -163,3 +163,14 @@ describe("EventFeed", () => {
     expect(liveStore.getState()).toMatchObject({ highlightedEventId: "e1", comparisonDriverIds: ["ver"] })
   })
 })
+
+describe("new event highlight", () => {
+  it("backfilled events are not flashed; later arrivals are", () => {
+    send(ev("OVERTAKE", 1))
+    render(<EventFeed />)
+    expect(cards()[0].className).not.toMatch(/flash-new/)
+    send(ev("NEW_STINT", 2))
+    expect(cards()[0].className).toContain("flash-new")
+    expect(cards()[1].className).not.toMatch(/flash-new/)
+  })
+})

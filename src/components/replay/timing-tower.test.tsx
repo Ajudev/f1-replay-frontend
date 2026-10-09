@@ -6,6 +6,7 @@ import type { RaceState } from "@/lib/api/types"
 type TrackStatus = NonNullable<RaceState["track_status"]>
 import { liveStore } from "@/lib/replay/live-store"
 import { driver, lap, msg, raceState, replay, REPLAY_ID } from "@/lib/test-fixtures"
+import { RaceStatusBar } from "./race-status-bar"
 import { LiveTiming } from "./timing-tower"
 
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
@@ -31,7 +32,7 @@ beforeEach(() => { seq = 10; act(() => liveStore.getState().reset(null)) })
 describe("timing tower", () => {
   it("renders rows in position order, reorders, no duplicates", () => {
     load()
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(order()).toEqual(["VER", "HAM"])
     upd("ham", { driver_number: 44 }, 1)
     upd("ver", { driver_number: 1 }, 2)
@@ -41,7 +42,7 @@ describe("timing tower", () => {
   it("null position goes last with dash; nulls show dash not 0", () => {
     load([driver("zzz", 1, { position: null }), driver("ver", 1)])
     upd("ver", {}, 1) // deltas sort by position
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(order()).toEqual(["VER", "ZZZ"])
     const cells = within(rows()[1]).getAllByRole("cell")
     expect(cells[0]).toHaveTextContent("—")
@@ -51,7 +52,7 @@ describe("timing tower", () => {
   })
   it("shows gap, lap time, compound letter and label, IN PIT then cleared, DNF", () => {
     load([driver("ver", 1), driver("ham", 2, { gap_to_leader_ms: 1240, last_lap_time_ms: 85421, compound: "MEDIUM", tyre_age_laps: 14, pit_status: "IN_PIT" }), driver("sai", 3, { race_status: "DID_NOT_FINISH" })])
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.getByText("LEADER")).toBeInTheDocument()
     expect(screen.getByText("+1.240")).toBeInTheDocument()
     expect(screen.getByText("1:25.421")).toBeInTheDocument()
@@ -68,7 +69,7 @@ describe("timing tower", () => {
   })
   it("position change indicator appears from deltas only", () => {
     load()
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.queryByText("Gained")).toBeNull()
     upd("ham", {}, 1)
     expect(screen.getByText("Gained")).toBeInTheDocument()
@@ -79,28 +80,28 @@ describe("timing tower", () => {
     ["VIRTUAL_SAFETY_CAR_ENDING", "VSC ending"], ["RED_FLAG", "Red flag"], ["UNKNOWN", "Unknown"], [null, "Track status unavailable"],
   ])("track status %s", (ts, text) => {
     load(undefined, { track_status: ts })
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.getByText(text)).toBeInTheDocument()
   })
   it("finished shows FIN badge text", () => {
     load([driver("ver", 1, { race_status: "FINISHED" }), driver("ham", 2)])
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.getByText("Finished", { selector: ".sr-only" })).toBeInTheDocument()
   })
   it("fastest lap and dash", () => {
     load(undefined, { fastest_lap: { driver_id: "ver", abbreviation: "VER", lap_number: 7, lap_time_ms: 85421, race_time_ms: 1 } })
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.getByText("VER · L7 · 1:25.421")).toBeInTheDocument()
   })
   it("states: created, connecting, stale marker", () => {
     act(() => liveStore.getState().apply(msg("SNAPSHOT", { replay: replay({ status: "CREATED" }), state: null, state_error: null }, { run_id: null, sequence: null })))
     act(() => liveStore.getState().reset(REPLAY_ID))
     act(() => liveStore.getState().apply(msg("SNAPSHOT", { replay: replay({ status: "CREATED" }), state: null, state_error: null }, { run_id: null, sequence: null })))
-    const { unmount } = render(<LiveTiming />)
+    const { unmount } = render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.getByText("Standings appear once the replay starts")).toBeInTheDocument()
     unmount()
     load()
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.queryByText("Timing may be stale")).toBeNull()
     act(() => liveStore.getState().setConnectionStatus("reconnecting"))
     expect(screen.getByText("Timing may be stale")).toBeInTheDocument()
@@ -111,7 +112,7 @@ describe("driver selection and details", () => {
   const pick = (abbr: string) => screen.getByRole("button", { name: new RegExp(abbr) })
   it("selects by click and keyboard, shows the right driver, survives reorder", async () => {
     load([driver("ver", 1, { full_name: "Max Verstappen" }), driver("ham", 2, { full_name: "Lewis Hamilton" })])
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     expect(screen.getByText("Select a driver")).toBeInTheDocument()
     await userEvent.click(pick("VER"))
     expect(pick("VER")).toHaveAttribute("aria-pressed", "true")
@@ -126,7 +127,7 @@ describe("driver selection and details", () => {
   })
   it("updates on DRIVER_UPDATE and LAP_COMPLETED, sorted laps and flags", async () => {
     load()
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     await userEvent.click(pick("VER"))
     upd("ver", { last_lap_time_ms: 84000, best_lap_time_ms: 84000, best_lap_number: 3 }, 1)
     const panel = screen.getByRole("region", { name: "Driver details" })
@@ -142,12 +143,25 @@ describe("driver selection and details", () => {
   })
   it("shows fallback when selected driver is gone, and reset clears", async () => {
     load()
-    render(<LiveTiming />)
+    render(<><RaceStatusBar /><LiveTiming /></>)
     await userEvent.click(pick("VER"))
     act(() => liveStore.getState().apply(msg("SNAPSHOT", { replay: replay(), state: raceState({ drivers: [driver("ham", 1)] }), state_error: null }, { sequence: 50 })))
     expect(screen.getByText("Driver not in current state")).toBeInTheDocument()
     act(() => liveStore.getState().reset(OTHER))
     expect(liveStore.getState()).toMatchObject({ selectedDriverId: null, state: null, replayId: OTHER, positionChanges: {} })
     expect(screen.queryByText("HAM")).toBeNull()
+  })
+})
+
+describe("position change highlight", () => {
+  it("none after the initial snapshot; gain flashes the row", () => {
+    load()
+    render(<LiveTiming />)
+    expect(rows()[1].className).not.toMatch(/flash-/)
+    upd("ham", { driver_number: 44 }, 1)
+    upd("ver", { driver_number: 1 }, 2)
+    const ham = rows()[0]
+    expect(ham.className).toContain("flash-gain")
+    expect(ham.className).toContain("motion-reduce:animate-none")
   })
 })

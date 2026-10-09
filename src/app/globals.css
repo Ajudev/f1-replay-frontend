@@ -96,6 +96,13 @@
   }
 }
 
+@keyframes flash-gain { from { background-color: oklch(0.7 0.17 150 / 35%); } to { background-color: transparent; } }
+@keyframes flash-loss { from { background-color: oklch(0.7 0.19 27 / 35%); } to { background-color: transparent; } }
+@keyframes flash-new { from { background-color: oklch(0.75 0.12 240 / 30%); } to { background-color: transparent; } }
+.flash-gain { animation: flash-gain 1.5s ease-out 1; }
+.flash-loss { animation: flash-loss 1.5s ease-out 1; }
+.flash-new { animation: flash-new 1.5s ease-out 1; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

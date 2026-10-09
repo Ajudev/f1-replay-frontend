@@ -12,17 +12,16 @@ import { formatDelta, formatGap, formatLapTime } from "@/lib/replay/timing-forma
 import { cn } from "@/lib/utils"
 import { EventFeed } from "./event-feed"
 import { DriverDetails } from "./driver-details"
-import { RaceStatusBar } from "./race-status-bar"
+import { SectionBoundary } from "@/components/section-boundary"
 import { Tyre } from "./tyre"
 
 export function LiveTiming({ onRetryEvents }: { onRetryEvents?: () => void } = {}) {
   return (
     <div className="space-y-4">
-      <RaceStatusBar />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)]">
-        <TimingTower />
-        <DriverDetails />
-        <div className="lg:col-span-2 xl:col-span-1"><EventFeed onRetry={onRetryEvents} /></div>
+        <SectionBoundary label="Timing tower"><TimingTower /></SectionBoundary>
+        <SectionBoundary label="Driver details"><DriverDetails /></SectionBoundary>
+        <div className="lg:col-span-2 xl:col-span-1"><SectionBoundary label="Events"><EventFeed onRetry={onRetryEvents} /></SectionBoundary></div>
       </div>
     </div>
   )
@@ -77,7 +76,7 @@ const Row = memo(function Row({ d, leaderId, change, selected }: { d: DriverStat
   const badge = dnf ? ["DNF", "Did not finish"] : d.pit_status === "IN_PIT" ? ["PIT", "In pit"] : d.race_status === "FINISHED" ? ["FIN", "Finished"] : null
   const ch = change ? positionChangeStyle(change) : null
   return (
-    <TableRow className={cn(selected && "bg-muted", dnf && "opacity-60")}>
+    <TableRow className={cn(selected && "bg-muted", dnf && "opacity-60", change && `flash-${change} motion-reduce:animate-none`)}>
       <TableCell className="tabular font-semibold">
         <span className="inline-flex items-center gap-1">
           {d.position ?? "—"}

@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { Profiler } from "react"
 import { act, render, renderHook, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -140,5 +141,19 @@ describe("useVisible", () => {
     expect(r2.result.current.shown).toBe(a.shown)
     r2.rerender({ c: 95_000 }) // ham's lap 1 (95s) is now revealed
     expect(r2.result.current.series).not.toBe(a.series)
+  })
+})
+
+describe("Analytics render cadence", () => {
+  it("a clock frame that crosses no point boundary does not re-render; crossing one does", async () => {
+    clock(3 * 90_000 + 2_000)
+    let commits = 0
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Profiler id="a" onRender={() => { commits++ }}><Analytics replayId={REPLAY_ID} /></Profiler></QueryClientProvider>)
+    await screen.findByText("Select at least one driver to view lap times.")
+    const before = commits
+    clock(3 * 90_000 + 3_000, 8)
+    expect(commits).toBe(before)
+    clock(3 * 90_000 + 5_000, 9) // ham completes lap 3
+    expect(commits).toBeGreaterThan(before)
   })
 })
