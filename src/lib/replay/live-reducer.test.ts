@@ -111,4 +111,43 @@ describe("liveReducer", () => {
       expect(s.events).toEqual([])
     })
   })
+
+  it("snapshots store drivers sorted by position, nulls last, without mutating the payload", () => {
+    const drivers = [driver("c", 1, { position: null }), driver("b", 2), driver("a", 1)]
+    const st = raceState({ drivers })
+    const ids = (x: LiveState) => x.state!.drivers.map((d) => d.driver_id)
+    expect(ids(liveReducer(initialLiveState, msg("SNAPSHOT", { replay: replay(), state: st, state_error: null })))).toEqual(["a", "b", "c"])
+    expect(ids(liveReducer(initialLiveState, msg("RACE_STATE_SNAPSHOT", { reason: "STATE_INITIALIZED", state: st })))).toEqual(["a", "b", "c"])
+    expect(drivers.map((d) => d.driver_id)).toEqual(["c", "b", "a"])
+  })
+
+  describe("positionChanges", () => {
+    const upd = (id: string, pos: number | null) => {
+      const { recent_laps: _r, ...d } = driver(id, pos ?? 1, { position: pos })
+      void _r
+      return msg("DRIVER_UPDATE", { driver: d })
+    }
+    it("marks gain and loss, none when unchanged", () => {
+      let s = liveReducer(seeded(), upd("ham", 1))
+      expect(s.positionChanges).toEqual({ ham: "gain" })
+      s = liveReducer(s, upd("ver", 2))
+      expect(s.positionChanges).toEqual({ ham: "gain", ver: "loss" })
+      expect(liveReducer(seeded(), upd("ver", 1)).positionChanges).toEqual({})
+    })
+    it("drops the entry when the position is unchanged later, same object if none", () => {
+      const s = liveReducer(seeded(), upd("ham", 1))
+      expect(liveReducer(s, upd("ham", 1)).positionChanges).toEqual({})
+      const none = seeded()
+      expect(liveReducer(none, upd("ver", 1)).positionChanges).toBe(none.positionChanges)
+    })
+    it("ignores null positions", () => {
+      expect(liveReducer(seeded(), upd("ver", null)).positionChanges).toEqual({})
+    })
+    it("snapshots clear and do not create indicators", () => {
+      const s = liveReducer(seeded(), upd("ham", 1))
+      const snap = raceState({ drivers: [driver("ham", 1), driver("ver", 2)] })
+      expect(liveReducer(s, msg("SNAPSHOT", { replay: replay(), state: snap, state_error: null }, { sequence: 9 })).positionChanges).toEqual({})
+      expect(liveReducer(s, msg("RACE_STATE_SNAPSHOT", { reason: "STATE_INITIALIZED", state: snap }, { sequence: 9 })).positionChanges).toEqual({})
+    })
+  })
 })

@@ -190,6 +190,35 @@ drivers, Create Replay), `/replays/[replayId]` (playback dashboard, REST plus li
   else the last REST response); it is not interpolated. Progress is lap based (`current_lap / total_laps`), read-only, 100% when completed, unavailable when
   totals are null. Stop ends the replay; only Restart plays it again.
 
+## Live timing
+
+- Components (`src/components/replay/`): `LiveTiming` (`timing-tower.tsx`) composes `RaceStatusBar`, `TimingTower`
+  and `DriverDetails`. The dashboard does not subscribe to `state`; each component uses narrow `useLiveStore`
+  selectors (tower: `state.drivers`, `positionChanges`, `leader_driver_id`, `selectedDriverId`; details: the one
+  selected driver found by `driver_id`).
+- Fields consumed (`RaceState`): `drivers`, `leader_driver_id`, `track_status`, `fastest_lap`. Per driver:
+  identity, `position`, `grid_position`, gap/interval, `laps_behind_leader`, last/best lap, tyre fields,
+  `pit_status`, `pit_stop_count`, `last_pit_lane_duration_ms`, `race_status`, `recent_laps`. No REST metadata fetch.
+- Sorting: the reducer keeps drivers sorted by `position` (null last) on deltas; components never re-sort. Rows
+  are keyed by `driver_id`. Snapshots are rendered in the order the backend sent.
+- Formatting (`src/lib/replay/timing-format.ts`): lap `1:25.421`, delta `+1.240`, null `—`. Gap shows `LEADER`
+  for position 1 / `leader_driver_id`, `+N LAP(S)` when `laps_behind_leader >= 1`. Gaps, intervals and best laps are
+  never computed from lap times.
+- Position change: the reducer sets `positionChanges[driver_id]` (`gain` | `loss`) only when a `DRIVER_UPDATE`
+  changes a non-null position. `SNAPSHOT`, `RACE_STATE_SNAPSHOT` and `reset` clear it, so it is lost on refresh,
+  reconnect and resync by design. Shown as icon plus screen-reader text.
+- Mapping: tyre via `compoundStyle` (letter + label, unknown `?`), track status via `trackStatusStyle`
+  (null shows "Track status unavailable"), SC / VSC / red flag render larger.
+- Selection: the store holds only `selectedDriverId`. The driver button in each row toggles it (`aria-pressed`).
+  If the driver is not in the state, the panel shows "Driver not in current state".
+- Lap history: the panel uses only `recent_laps` (backend keeps the last N laps, all at or before the cursor).
+  "Stints so far" groups those laps by `stint_number`, so earlier stints may be missing.
+- States: CREATED shows "Standings appear once the replay starts"; connecting shows a skeleton. "Timing may be
+  stale" shows when the socket is not open or a resync is pending. COMPLETED shows the final state.
+- Responsive: tower and panel are side by side from `lg`, stacked below. Under `sm` the Interval, Best lap, Pit
+  and Status columns are hidden (details are in the panel); the table scrolls horizontally.
+- Limitations: no sector times and no team colours (not in the API); lap history limited to `recent_laps`.
+
 ## Known gaps
 
 - No seeking or lap skipping (not supported by the backend).

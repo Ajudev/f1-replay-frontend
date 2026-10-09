@@ -23,6 +23,8 @@ export interface LiveState {
   /** Set when deltas cannot be trusted; the caller sends RESYNC. Cleared by the next SNAPSHOT. */
   needsResync: boolean
   lastError: ErrorBody | null
+  /** Transient position movement seen in DRIVER_UPDATE deltas; cleared by any snapshot. */
+  positionChanges: Record<string, "gain" | "loss">
 }
 
 export const initialLiveState: LiveState = {
@@ -34,6 +36,7 @@ export const initialLiveState: LiveState = {
   lastSequence: null,
   needsResync: false,
   lastError: null,
+  positionChanges: {},
 }
 
 const STATE_TYPES: ReadonlySet<ServerMessage["type"]> = new Set([
@@ -43,6 +46,9 @@ const STATE_TYPES: ReadonlySet<ServerMessage["type"]> = new Set([
 
 const byPosition = (a: DriverState, b: DriverState) =>
   (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER)
+
+const sortedState = <T extends RaceState | null>(state: T): T =>
+  (state ? { ...state, drivers: [...state.drivers].sort(byPosition) } : state) as T
 
 function withDriver(state: RaceState, id: string, update: (d: DriverState | undefined) => DriverState): RaceState {
   const exists = state.drivers.some((d) => d.driver_id === id)
@@ -63,11 +69,12 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
         ...live,
         replay,
         events: runId === live.runId ? live.events : [],
-        state,
+        state: sortedState(state),
         runId,
         lastSequence: seq,
         needsResync: false,
         lastError: state_error,
+        positionChanges: {},
       }
     }
     case "REPLAY_STATUS":
@@ -89,11 +96,12 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
     const runId = msg.run_id ?? state.run_id
     return {
       ...live,
-      state,
+      state: sortedState(state),
       events: runId === live.runId ? live.events : [],
       runId,
       lastSequence: msg.sequence ?? state.last_sequence,
       needsResync: false,
+      positionChanges: {},
     }
   }
   // Events dedup by id, so they skip the sequence check, never advance the state cursor and never request a resync.
@@ -114,8 +122,15 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
       return { ...base, state: { ...state, ...msg.payload.race, last_sequence: msg.payload.last_sequence } }
     case "DRIVER_UPDATE": {
       const d = msg.payload.driver
+      const prev = state.drivers.find((x) => x.driver_id === d.driver_id)?.position
+      const moved = prev != null && d.position != null && prev !== d.position
       return {
         ...base,
+        positionChanges: moved
+          ? { ...live.positionChanges, [d.driver_id]: d.position! < prev ? "gain" : "loss" }
+          : prev === d.position && d.driver_id in live.positionChanges
+            ? Object.fromEntries(Object.entries(live.positionChanges).filter(([k]) => k !== d.driver_id))
+            : live.positionChanges,
         state: withDriver(state, d.driver_id, (old) => ({ ...d, recent_laps: old?.recent_laps ?? [] })),
       }
     }
