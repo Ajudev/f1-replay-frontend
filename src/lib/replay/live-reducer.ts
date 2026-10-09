@@ -3,13 +3,15 @@ import type { ClockPayload, ServerMessage } from "@/lib/ws/messages"
 
 export const MAX_EVENTS = 200
 
-/** Adds unseen events (by detected_event_id), keeps source_sequence order, drops the oldest beyond MAX_EVENTS. */
+const byOrder = (a: DetectedEvent, b: DetectedEvent) =>
+  a.source_sequence - b.source_sequence || a.race_time_ms - b.race_time_ms || (a.detected_event_id < b.detected_event_id ? -1 : a.detected_event_id > b.detected_event_id ? 1 : 0)
+
+/** Adds unseen events (by detected_event_id), keeps (source_sequence, race_time_ms, id) order, drops the oldest beyond MAX_EVENTS. */
 export function mergeEvents(current: DetectedEvent[], incoming: DetectedEvent[]): DetectedEvent[] {
   const seen = new Set(current.map((e) => e.detected_event_id))
   const fresh = incoming.filter((e) => !seen.has(e.detected_event_id) && seen.add(e.detected_event_id))
   if (fresh.length === 0) return current
-  // Array.sort is stable, so ties keep arrival order.
-  return [...current, ...fresh].sort((a, b) => a.source_sequence - b.source_sequence).slice(-MAX_EVENTS)
+  return [...current, ...fresh].sort(byOrder).slice(-MAX_EVENTS)
 }
 
 export interface LiveState {

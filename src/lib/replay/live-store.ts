@@ -8,17 +8,20 @@ export interface LiveStore extends LiveState {
   replayId: string | null
   connectionStatus: SocketStatus
   selectedDriverId: string | null
+  /** The last event backfill for the current replay and run failed; cleared by the next success. */
+  eventsBackfillError: boolean
   apply: (msg: ServerMessage) => void
   /** Writes the REST-confirmed replay; later frames (ordered per replay by the gateway) supersede it. */
   confirmReplay: (replay: Replay) => void
   /** Merges backfilled events; ignored unless replay and run are still the ones requested. */
   mergeEvents: (replayId: string, runId: string, events: DetectedEvent[]) => void
+  setEventsBackfillError: (replayId: string, runId: string) => void
   setConnectionStatus: (s: SocketStatus) => void
   selectDriver: (id: string | null) => void
   reset: (replayId: string | null) => void
 }
 
-const blank = { ...initialLiveState, replayId: null, connectionStatus: "idle" as SocketStatus, selectedDriverId: null }
+const blank = { ...initialLiveState, replayId: null, connectionStatus: "idle" as SocketStatus, selectedDriverId: null, eventsBackfillError: false }
 
 export function createLiveStore() {
   return createStore<LiveStore>()((set) => ({
@@ -39,8 +42,10 @@ export function createLiveStore() {
       set((s) => {
         if (s.replayId !== replayId || s.runId !== runId) return s
         const next = mergeEvents(s.events, events)
-        return next === s.events ? s : { events: next }
+        return next === s.events && !s.eventsBackfillError ? s : { events: next, eventsBackfillError: false }
       }),
+    setEventsBackfillError: (replayId, runId) =>
+      set((s) => (s.replayId !== replayId || s.runId !== runId || s.eventsBackfillError ? s : { eventsBackfillError: true })),
     setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
     selectDriver: (selectedDriverId) => set({ selectedDriverId }),
     reset: (replayId) => set({ ...blank, replayId }),

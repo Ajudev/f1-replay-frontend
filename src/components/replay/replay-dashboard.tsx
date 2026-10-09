@@ -33,7 +33,7 @@ export function ReplayDashboard({ replayId }: { replayId: string }) {
 
 function Dashboard({ replayId }: { replayId: string }) {
   const q = useReplay(replayId)
-  const { retry } = useReplayLiveConnection(replayId)
+  const { retry, retryEvents } = useReplayLiveConnection(replayId)
   const replay = useEffectiveReplay(q.data)
   if (q.isPending) return <div role="status" aria-busy="true" aria-label="Loading replay"><Skeleton className="h-40" /></div>
   if (!q.data || !replay) {
@@ -46,7 +46,7 @@ function Dashboard({ replayId }: { replayId: string }) {
       <ConnectionStatus onRetry={retry} />
       {q.isRefetchError && <p role="status" className="text-sm text-warning">Live updates interrupted: {errorMessage(q.error)} Showing the last known state.</p>}
       <Controls replay={replay} />
-      <LiveTiming />
+      <LiveTiming onRetryEvents={retryEvents} />
     </div>
   )
 }

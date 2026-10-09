@@ -141,4 +141,15 @@ describe("useReplayLiveConnection", () => {
     expect(liveStore.getState().connectionStatus).toBe("connecting")
     unmount()
   })
+
+  it("flags a failed backfill, and a later successful one clears it", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    events.mockRejectedValueOnce(new Error("boom"))
+    const { unmount } = renderHook(() => useReplayLiveConnection(REPLAY_ID))
+    act(() => { FakeWS.last.open(); FakeWS.last.push(snapshot()) })
+    await waitFor(() => expect(liveStore.getState().eventsBackfillError).toBe(true))
+    act(() => FakeWS.last.push(snapshot({ sequence: 6 })))
+    await waitFor(() => expect(liveStore.getState().eventsBackfillError).toBe(false))
+    unmount()
+  })
 })

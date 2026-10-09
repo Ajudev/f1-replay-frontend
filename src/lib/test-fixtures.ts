@@ -1,4 +1,4 @@
-import type { DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
+import type { DetectedEvent, DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
 import type { ServerMessage } from "@/lib/ws/messages"
 
 export const REPLAY_ID = "11111111-1111-4111-8111-111111111111"
@@ -89,3 +89,23 @@ export class FakeWS {
   push(m: unknown) { this.onmessage?.({ data: JSON.stringify(m) }) }
   drop(code = 1006) { this.readyState = 3; this.onclose?.({ code }) }
 }
+
+/** Detected events shaped like the backend's DetectedEventOut, with real detector evidence keys. */
+export const evt = (event_type: string, evidence: Record<string, unknown> = {}, over: Partial<DetectedEvent> = {}): DetectedEvent =>
+  ({
+    detected_event_id: `id-${event_type}`, event_type, schema_version: 1, replay_id: "r", run_id: "run", session_id: "s", race_id: null,
+    race_time_ms: 3_723_000, lap_number: 12, primary_driver_id: "nor", primary_driver_abbreviation: "NOR",
+    secondary_driver_id: "lec", secondary_driver_abbreviation: "LEC", severity: null, confidence: null, evidence,
+    source_event_ids: [], source_sequence: 1, detector_name: "d", detector_version: 1, detected_at: "2024-01-01T00:00:00Z", ...over,
+  }) as DetectedEvent
+
+export const EVIDENCE: Record<string, Record<string, unknown>> = {
+  BATTLE_FORMING: { gap_ms: 1500, gap_history: [{ lap: 8, gap_ms: 3200 }, { lap: 9, gap_ms: 2400 }, { lap: 10, gap_ms: 1500 }], closing_rate_ms_per_lap: 850.5, observed_laps: 3, window_laps: 4, attacker_position: 3, defender_position: 2, basis: "LAP_END", threshold_ms: 2000 },
+  RAPIDLY_CLOSING: { gap_ms: 2800, gap_history: [{ lap: 9, gap_ms: 4000 }, { lap: 10, gap_ms: 2800 }], closing_rate_ms_per_lap: 1200, observed_laps: 2, window_laps: 4, attacker_position: 5, defender_position: 4, basis: "LAP_END", max_gap_ms: 3000, min_closing_rate_ms: 1000 },
+  OVERTAKE: { lap: 12, overtaker_previous_position: 3, overtaker_new_position: 2, overtaken_previous_position: 2, overtaken_new_position: 3, classification: "ON_TRACK_LIKELY", basis: "LAP_END", confirmed_by: "LEC" },
+  PACE_DEGRADATION: { stint_number: 2, compound: "MEDIUM", tyre_age_laps: 18, baseline_median_ms: 90000, recent_median_ms: 90610, delta_ms: 610, slower_recent_laps: 3, baseline_window_laps: 5, recent_window_laps: 3 },
+  PACE_ANOMALY: { stint_number: 1, compound: "SOFT", tyre_age_laps: 7, lap_time_ms: 95421, expected_ms: 90000, deviation_ms: 5421, robust_score: 4.567, mad_ms: 300, mad_floor_ms: 250 },
+  PERSONAL_BEST: { lap_time_ms: 85421, previous_best_ms: 85900, previous_best_lap: 5, improvement_ms: 479, previous_true_best_ms: 85900, min_improvement_ms: 100, compound: "HARD", tyre_age_laps: 3, stint_number: 2 },
+  NEW_STINT: { stint_number: 2, compound: "HARD", previous_stint_number: 1, previous_compound: "MEDIUM", compound_changed: true, starting_lap: 21, tyre_age_laps: 0, pit_lane_duration_ms: 22345, pit_stop_count: 1, source_event_type: "PIT_EXIT" },
+}
+

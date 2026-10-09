@@ -7,7 +7,7 @@ import { api } from "@/lib/api/endpoints"
 import type { Replay } from "@/lib/api/types"
 import { REPLAY_POLL_MS } from "@/lib/query/hooks"
 import { liveStore } from "@/lib/replay/live-store"
-import { FakeWS, msg, raceState, raceSummary, replay, REPLAY_ID } from "@/lib/test-fixtures"
+import { EVIDENCE, evt, FakeWS, msg, raceState, raceSummary, replay, REPLAY_ID, RUN_A } from "@/lib/test-fixtures"
 import { ReplayDashboard } from "./replay-dashboard"
 
 vi.mock("@/lib/api/endpoints", () => ({
@@ -272,5 +272,16 @@ describe("live connection", () => {
     expect(a.closed).toBe(true)
     act(() => a.push(snap({ current_lap: 40 })))
     expect(liveStore.getState().replay).toBeNull()
+  })
+
+  it("selecting a driver from an event feed card highlights the tower row and shows details", async () => {
+    await connect()
+    act(() => FakeWS.last.push(snap()))
+    const event = evt("OVERTAKE", EVIDENCE.OVERTAKE, { run_id: RUN_A, primary_driver_id: "ham", primary_driver_abbreviation: "HAM", secondary_driver_id: "ver", secondary_driver_abbreviation: "VER" })
+    act(() => FakeWS.last.push(msg("DETECTED_EVENT", { event })))
+    expect(screen.getByText("Select a driver")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Select driver HAM" }))
+    expect(screen.queryByText("Select a driver")).toBeNull()
+    expect(screen.getByRole("button", { name: /^HAM/, pressed: true })).toBeInTheDocument()
   })
 })

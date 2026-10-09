@@ -19,7 +19,7 @@ async function fetchRecentEvents(replayId: string, runId: string, signal: AbortS
  * Connects the live store to a replay's WebSocket; resets and tears down on unmount or replay change.
  * Returns `retry`, for reconnecting after the socket gave up. Mount once per page (the store is global).
  */
-export function useReplayLiveConnection(replayId: string | null): { retry: () => void } {
+export function useReplayLiveConnection(replayId: string | null): { retry: () => void; retryEvents: () => void } {
   const socketRef = useRef<ReplaySocket | null>(null)
   useEffect(() => {
     if (!replayId) return
@@ -43,7 +43,9 @@ export function useReplayLiveConnection(replayId: string | null): { retry: () =>
             if (!ctl.signal.aborted) liveStore.getState().mergeEvents(replayId, runId, events)
           })
           .catch((e) => {
-            if (!ctl.signal.aborted && process.env.NODE_ENV !== "production") console.warn("[ws] event backfill failed", e)
+            if (ctl.signal.aborted) return
+            liveStore.getState().setEventsBackfillError(replayId, runId)
+            if (process.env.NODE_ENV !== "production") console.warn("[ws] event backfill failed", e)
           })
       },
       onStatus: (s) => {
@@ -60,5 +62,9 @@ export function useReplayLiveConnection(replayId: string | null): { retry: () =>
       reset(null)
     }
   }, [replayId])
-  return { retry: useCallback(() => socketRef.current?.retry(), []) }
+  return {
+    retry: useCallback(() => socketRef.current?.retry(), []),
+    // A RESYNC yields a fresh SNAPSHOT, which re-runs the backfill; no second fetch path.
+    retryEvents: useCallback(() => socketRef.current?.resync(), []),
+  }
 }

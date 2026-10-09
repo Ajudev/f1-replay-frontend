@@ -100,7 +100,25 @@ sequence check and never move the state cursor. Messages published while the soc
 replayed, so on every `SNAPSHOT` (connect, reconnect, resync) the hook fetches `GET /replays/{id}/events`
 for the snapshot's run (`run_id`, `limit=200`; the list is oldest first, so when `total` exceeds 200 a second
 request reads the tail) and merges it with the same dedup. A response is discarded if the replay or run
-changed, or the connection was torn down, while it was in flight. There is no event feed UI yet.
+changed, or the connection was torn down, while it was in flight. Ties on `source_sequence` are ordered by
+`race_time_ms`, then `detected_event_id`. A failed backfill sets `liveStore.eventsBackfillError` (current replay and run only; cleared by the next successful merge or reset) and the feed shows "Couldn't load earlier events" with Retry, which sends RESYNC so the next SNAPSHOT re-runs the same backfill.
+
+**Event feed** (`src/components/replay/event-feed.tsx`, formatting in `src/lib/replay/event-format.ts`) reads
+`liveStore.events` only: no extra socket, query or dedup. Newest first, in a scroll container; if the user is
+scrolled down, new events show a "N new events" button instead of moving the list. Categories: Battles
+(`BATTLE_FORMING`, `RAPIDLY_CLOSING`), Overtakes, Pace (`PACE_DEGRADATION`, `PACE_ANOMALY`), Performance
+(`PERSONAL_BEST`), Stints (`NEW_STINT`); an unknown type renders as "Detected event" and appears under "All"
+only. Filters are a category and a driver (matches primary or secondary), derived without touching the store.
+Driver buttons call `selectDriver`, the same selection the timing tower and driver details use.
+
+`evidence` is free-form and read defensively: a missing or wrongly typed key omits its line; values are shown
+as sent (ms formatted as seconds or lap times, never rescaled). The keys come from the backend detectors in
+`app/detection/detectors/`. The overtake `classification` is shown as the backend sends it ("on track likely").
+`severity` is set only by the pace detectors and is hidden when null; `confidence` appears in details only when
+non-null. The frontend does not classify or score events.
+
+Limitations: only the latest 200 events of the run are kept (the feed says so); the REST events endpoint has no
+cursor filter, so each reconnect refetches the tail.
 
 ### Single view of the replay
 

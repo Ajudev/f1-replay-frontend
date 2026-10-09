@@ -99,6 +99,11 @@ describe("liveReducer", () => {
       expect(s.events).toHaveLength(200)
       expect(s.events[0].detected_event_id).toBe("e50")
     })
+    it("breaks source_sequence ties by race time then id, whatever the arrival order", () => {
+      const t = (id: string, race_time_ms: number) => ({ ...(ev(id, 5) as object), race_time_ms }) as never
+      const a = feed(feed(feed(seeded(), t("b", 20)), t("c", 10)), t("a", 20))
+      expect(a.events.map((e) => e.detected_event_id)).toEqual(["c", "a", "b"])
+    })
     it("clears on a new run, keeps on same-run SNAPSHOT", () => {
       const s = feed(seeded(), ev("a"))
       const same = liveReducer(s, msg("SNAPSHOT", { replay: replay(), state: raceState(), state_error: null }, { sequence: 9 }))

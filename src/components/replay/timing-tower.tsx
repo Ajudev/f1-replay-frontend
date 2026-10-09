@@ -10,17 +10,19 @@ import { positionChangeStyle } from "@/lib/domain-styles"
 import { liveStore, useLiveStore } from "@/lib/replay/live-store"
 import { formatDelta, formatGap, formatLapTime } from "@/lib/replay/timing-format"
 import { cn } from "@/lib/utils"
+import { EventFeed } from "./event-feed"
 import { DriverDetails } from "./driver-details"
 import { RaceStatusBar } from "./race-status-bar"
 import { Tyre } from "./tyre"
 
-export function LiveTiming() {
+export function LiveTiming({ onRetryEvents }: { onRetryEvents?: () => void } = {}) {
   return (
     <div className="space-y-4">
       <RaceStatusBar />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)]">
         <TimingTower />
         <DriverDetails />
+        <div className="lg:col-span-2 xl:col-span-1"><EventFeed onRetry={onRetryEvents} /></div>
       </div>
     </div>
   )
