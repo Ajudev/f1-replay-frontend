@@ -108,7 +108,7 @@ Backend default allows `http://localhost:3000`. Other origins need backend confi
 ## Race explorer and replay creation
 
 Routes: `/races` (season selector via `?season=`, optional `?q=` search), `/races/[raceId]` (detail, sessions,
-drivers, Create Replay), `/replays/[replayId]` (status summary only; no controls or WebSocket yet).
+drivers, Create Replay), `/replays/[replayId]` (playback dashboard, REST only; no WebSocket yet).
 
 - `GET /seasons`, `GET /races?season=`, `GET /races/{id}`, `GET /races/{id}/drivers?session_type=` feed the
   explorer. These return only races already imported into PostgreSQL; there is no catalogue of
@@ -122,7 +122,28 @@ drivers, Create Replay), `/replays/[replayId]` (status summary only; no controls
   creation fails with the backend's 404/409 message.
 - `POST /races/import` is deliberately unused: the UI never triggers ingestion.
 
+## Replay dashboard (`/replays/[replayId]`)
+
+- Component `ReplayDashboard` (keyed by `replayId`, so local error state resets on switch). Hooks in
+  `src/lib/query/hooks.ts`: `useReplay` and `useReplayControl(replayId)` (start, pause, resume, stop, restart
+  and speed through one mutation, so only one command is in flight). Helpers in `src/lib/replay/playback.ts`.
+- Allowed actions follow the backend table: CREATED: start. RUNNING: pause, stop, restart. PAUSED: resume,
+  stop, restart. STOPPED, COMPLETED, FAILED: restart. Others are disabled. The backend still decides; a 409
+  is shown inline and the replay is refetched. The page never starts a replay on open.
+- Speeds 1, 2, 5, 10, 20 (PATCH `/speed`, allowed in any status). The selected speed is always the
+  backend-confirmed `playback_speed`; there is no optimistic value.
+- Cache sync: a command response is written to `["replays", id]` after cancelling in-flight queries, so an
+  older poll cannot overwrite it. Command errors invalidate the key.
+- Polling: `useReplay` refetches every `REPLAY_POLL_MS` (1500 ms) only while status is RUNNING. Remove it when
+  WebSocket updates drive the dashboard. A failed poll keeps the last data and shows a warning.
+- Clock is `current_race_time_ms` as HH:MM:SS from the last response (not interpolated, so it moves at poll
+  rate). Progress is lap based (`current_lap / total_laps`), read-only, 100% when completed, unavailable when
+  totals are null. Stop ends the replay; only Restart plays it again.
+
 ## Known gaps
+
+- No seeking or lap skipping (not supported by the backend).
+- Race clock and lap update only on poll/command responses until WebSocket is wired in.
 
 - No running backend was available: live REST responses and WebSocket frames are not verified, only
   the exported schema and backend source.

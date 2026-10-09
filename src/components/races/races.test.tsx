@@ -8,7 +8,6 @@ import { api } from "@/lib/api/endpoints"
 import { driverSummary, QUALI_SESSION_ID, RACE_ID, RACE_SESSION_ID, raceSummary, replay, REPLAY_ID } from "@/lib/test-fixtures"
 import { RaceDetail } from "./race-detail"
 import { RaceExplorer } from "./race-explorer"
-import { ReplaySummary } from "./replay-summary"
 
 vi.mock("@/lib/api/endpoints", () => ({
   api: { seasons: vi.fn(), races: vi.fn(), race: vi.fn(), raceDrivers: vi.fn(), createReplay: vi.fn(), replay: vi.fn() },
@@ -133,20 +132,5 @@ describe("RaceDetail", () => {
     m.race.mockRejectedValue(new ApiError(404, "NF", "nope"))
     wrap(<RaceDetail raceId={RACE_ID} />)
     expect(await screen.findByText("Race not found")).toBeInTheDocument()
-  })
-})
-
-describe("ReplaySummary", () => {
-  it("shows status and id", async () => {
-    m.replay.mockResolvedValue(replay({ status: "CREATED" }))
-    wrap(<ReplaySummary replayId={REPLAY_ID} />)
-    expect(await screen.findByText("Created")).toBeInTheDocument()
-    expect(screen.getByText(REPLAY_ID)).toBeInTheDocument()
-    expect(screen.getByText(/not available yet/)).toBeInTheDocument()
-  })
-  it("handles 404", async () => {
-    m.replay.mockRejectedValue(new ApiError(404, "NF", "nope"))
-    wrap(<ReplaySummary replayId={REPLAY_ID} />)
-    expect(await screen.findByText("Replay not found")).toBeInTheDocument()
   })
 })
