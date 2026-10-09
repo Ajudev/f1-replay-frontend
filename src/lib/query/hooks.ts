@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api, type RaceQuery } from "@/lib/api/endpoints"
 import type { ReplayCreateRequest } from "@/lib/api/types"
 import type { ReplayAction } from "@/lib/replay/playback"
+import { liveStore, useLiveStore } from "@/lib/replay/live-store"
 import { queryKeys } from "./query-keys"
 
 // Imported historical data is near-static.
@@ -28,15 +29,19 @@ export const useRaceDrivers = (raceId: string, sessionType?: string) =>
     staleTime: STATIC_STALE_MS,
   })
 
-/** Poll interval while RUNNING; remove when WebSocket updates drive the dashboard. */
+/** Fallback poll interval while the socket is down and the replay is not terminal; off whenever the replay's socket is open. */
 export const REPLAY_POLL_MS = 1500
 
-export const useReplay = (replayId: string) =>
-  useQuery({
+const TERMINAL: ReadonlySet<string> = new Set(["COMPLETED", "FAILED", "STOPPED"])
+
+export function useReplay(replayId: string) {
+  const socketOpen = useLiveStore((s) => s.replayId === replayId && s.connectionStatus === "open")
+  return useQuery({
     queryKey: queryKeys.replay(replayId),
     queryFn: ({ signal }) => api.replay(replayId, { signal }),
-    refetchInterval: (q) => (q.state.data?.status === "RUNNING" ? REPLAY_POLL_MS : false),
+    refetchInterval: (q) => (!socketOpen && !TERMINAL.has(q.state.data?.status ?? "") ? REPLAY_POLL_MS : false),
   })
+}
 
 export type ReplayCommand = ReplayAction | { speed: number }
 
@@ -55,6 +60,7 @@ export function useReplayControl(replayId: string) {
     onSuccess: async (data) => {
       await qc.cancelQueries({ queryKey: key }) // a poll started earlier must not overwrite this result
       qc.setQueryData(key, data)
+      liveStore.getState().confirmReplay(data)
     },
     onError: () => qc.invalidateQueries({ queryKey: key }),
   })

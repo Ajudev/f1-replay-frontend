@@ -60,6 +60,13 @@ export class ReplaySocket {
     this.setStatus("closed")
   }
 
+  /** Manual reconnect after the bounded retries gave up; resets the attempt counter. */
+  retry(): void {
+    if (this.replayId === null || this.ws || this.retryTimer) return
+    this.attempt = 0
+    this.open("connecting")
+  }
+
   resync(): void {
     this.send({ type: "RESYNC" })
   }
@@ -90,7 +97,11 @@ export class ReplaySocket {
     ws.onmessage = (e: MessageEvent) => {
       if (this.ws !== ws || typeof e.data !== "string") return
       const r = parseServerMessage(e.data)
-      if (r.kind !== "message" || r.message.replay_id !== this.replayId) return
+      if (r.kind !== "message") {
+        if (process.env.NODE_ENV !== "production") console.warn("[ws] dropped frame:", r.kind === "invalid" ? r.reason : `unknown type ${r.type}`)
+        return
+      }
+      if (r.message.replay_id !== this.replayId) return
       // Backend accepts then closes on 1013/1011, so only a SNAPSHOT proves the connection is healthy.
       if (r.message.type === "SNAPSHOT") this.attempt = 0
       this.o.onMessage(r.message)

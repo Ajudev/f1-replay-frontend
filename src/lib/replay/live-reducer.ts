@@ -1,8 +1,21 @@
-import type { DriverState, ErrorBody, RaceState, Replay } from "@/lib/api/types"
+import type { DetectedEvent, DriverState, ErrorBody, RaceState, Replay } from "@/lib/api/types"
 import type { ClockPayload, ServerMessage } from "@/lib/ws/messages"
+
+export const MAX_EVENTS = 200
+
+/** Adds unseen events (by detected_event_id), keeps source_sequence order, drops the oldest beyond MAX_EVENTS. */
+export function mergeEvents(current: DetectedEvent[], incoming: DetectedEvent[]): DetectedEvent[] {
+  const seen = new Set(current.map((e) => e.detected_event_id))
+  const fresh = incoming.filter((e) => !seen.has(e.detected_event_id) && seen.add(e.detected_event_id))
+  if (fresh.length === 0) return current
+  // Array.sort is stable, so ties keep arrival order.
+  return [...current, ...fresh].sort((a, b) => a.source_sequence - b.source_sequence).slice(-MAX_EVENTS)
+}
 
 export interface LiveState {
   replay: Replay | null
+  /** Recent detected events of the current run, as received. */
+  events: DetectedEvent[]
   state: RaceState | null
   clock: ClockPayload | null
   runId: string | null
@@ -14,6 +27,7 @@ export interface LiveState {
 
 export const initialLiveState: LiveState = {
   replay: null,
+  events: [],
   state: null,
   clock: null,
   runId: null,
@@ -42,25 +56,29 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
   switch (msg.type) {
     case "SNAPSHOT": {
       const { replay, state, state_error } = msg.payload
+      const runId = msg.run_id ?? state?.run_id ?? null
+      const seq = msg.sequence ?? state?.last_sequence ?? null
+      if (runId !== null && runId === live.runId && seq !== null && live.lastSequence !== null && seq < live.lastSequence) return live
       return {
         ...live,
         replay,
+        events: runId === live.runId ? live.events : [],
         state,
-        runId: msg.run_id ?? state?.run_id ?? null,
-        lastSequence: msg.sequence ?? state?.last_sequence ?? null,
+        runId,
+        lastSequence: seq,
         needsResync: false,
         lastError: state_error,
       }
     }
     case "REPLAY_STATUS":
     case "REPLAY_COMPLETED":
-      return { ...live, replay: msg.payload.replay }
+      // The replay object carries the clock fields, so an older REPLAY_CLOCK must not override it.
+      return { ...live, replay: msg.payload.replay, clock: null }
     case "REPLAY_CLOCK":
       return { ...live, clock: msg.payload }
     case "ERROR":
       return { ...live, lastError: msg.payload }
     case "PONG":
-    case "DETECTED_EVENT": // not race state; never stored here
       return live
   }
 
@@ -68,13 +86,20 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
   if (msg.type === "RACE_STATE_SNAPSHOT") {
     // Announces a (possibly new) run: adopt it wholesale.
     const { state } = msg.payload
+    const runId = msg.run_id ?? state.run_id
     return {
       ...live,
       state,
-      runId: msg.run_id ?? state.run_id,
+      events: runId === live.runId ? live.events : [],
+      runId,
       lastSequence: msg.sequence ?? state.last_sequence,
       needsResync: false,
     }
+  }
+  // Events dedup by id, so they skip the sequence check, never advance the state cursor and never request a resync.
+  if (msg.type === "DETECTED_EVENT") {
+    const { event } = msg.payload
+    return event.run_id === live.runId ? { ...live, events: mergeEvents(live.events, [event]) } : live
   }
   if (live.state === null || live.runId === null || msg.run_id !== live.runId) {
     return live.needsResync ? live : { ...live, needsResync: true }
@@ -104,8 +129,7 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
       return { ...base, state: withDriver(state, driver_id, () => ({ ...cur, recent_laps })) }
     }
     default:
-      // Notifications (POSITION_CHANGED, PIT_STATUS_CHANGED, TRACK_STATUS_CHANGED) are already in the updates;
-      // DETECTED_EVENT is not part of race state.
+      // Notifications (POSITION_CHANGED, PIT_STATUS_CHANGED, TRACK_STATUS_CHANGED) are already in the updates.
       return STATE_TYPES.has(msg.type) ? base : live
   }
 }

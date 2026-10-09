@@ -70,3 +70,22 @@ export const driverSummary = (over: Partial<DriverSummary> = {}): DriverSummary 
   id: "d1", driver_number: 1, abbreviation: "VER", full_name: "Max Verstappen", first_name: "Max", last_name: "Verstappen",
   team_name: "Red Bull Racing", grid_position: 1, finish_position: 1, result_status: "Finished", ...over,
 })
+
+/** Minimal controllable WebSocket for tests; stub with vi.stubGlobal("WebSocket", FakeWS). */
+export class FakeWS {
+  static instances: FakeWS[] = []
+  static get last(): FakeWS { return FakeWS.instances[FakeWS.instances.length - 1] }
+  readyState = 0
+  sent: string[] = []
+  closed = false
+  onopen: (() => void) | null = null
+  onmessage: ((e: { data: unknown }) => void) | null = null
+  onclose: ((e: { code: number }) => void) | null = null
+  onerror: (() => void) | null = null
+  constructor(public url: string) { FakeWS.instances.push(this) }
+  send(d: string) { this.sent.push(d) }
+  close() { this.closed = true }
+  open() { this.readyState = 1; this.onopen?.() }
+  push(m: unknown) { this.onmessage?.({ data: JSON.stringify(m) }) }
+  drop(code = 1006) { this.readyState = 3; this.onclose?.({ code }) }
+}
