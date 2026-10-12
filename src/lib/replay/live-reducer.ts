@@ -1,7 +1,10 @@
 import type { DetectedEvent, DriverState, ErrorBody, RaceState, Replay } from "@/lib/api/types"
-import type { ClockPayload, ServerMessage } from "@/lib/ws/messages"
+import type { CarFrameCar, ClockPayload, ServerMessage } from "@/lib/ws/messages"
+import { applyBattleEvent, isBattleEvent, toBattleMap, type BattleMap } from "./battles"
 
 export const MAX_EVENTS = 200
+/** CAR_FRAMEs come every ~250 ms of wall time; a bigger race-time step than this (scaled by speed) is a jump, not motion. */
+export const SNAP_AFTER_WALL_MS = 1000
 
 const byOrder = (a: DetectedEvent, b: DetectedEvent) =>
   a.source_sequence - b.source_sequence || a.race_time_ms - b.race_time_ms || (a.detected_event_id < b.detected_event_id ? -1 : a.detected_event_id > b.detected_event_id ? 1 : 0)
@@ -27,6 +30,22 @@ export interface LiveState {
   lastError: ErrorBody | null
   /** Transient position movement seen in DRIVER_UPDATE deltas; cleared by any snapshot. */
   positionChanges: Record<string, "gain" | "loss">
+  /**
+   * Latest CAR_FRAME, cars keyed by driver_id. `epoch` is the frameEpoch it arrived in. `snap`: draw without animating
+   * (first frame of an epoch, or a race-time jump such as a seek).
+   */
+  carFrame: { epoch: number; race_time_ms: number; snap: boolean; cars: Record<string, CarFrameCar> } | null
+  /** Bumped by every snapshot and run change: frames may jump (restart, resync), so markers snap instead of animating. */
+  frameEpoch: number
+  /** From SNAPSHOT; null until a snapshot that carries the flags. Both false = no CAR_FRAME will arrive. */
+  trackAvailability: { positions: boolean; telemetry: boolean } | null
+  battles: BattleMap
+  /** SNAPSHOT.battles was null: the set may be outdated until a REST fetch of /battles. */
+  battlesStale: boolean
+  /** Battle detections received while stale; replayed over the REST result so in-flight deltas are not lost. */
+  pendingBattleEvents: DetectedEvent[]
+  /** Battle detection ids already applied in this run, so a redelivered FORMING cannot revive an ended battle. */
+  appliedBattleEventIds: Record<string, true>
 }
 
 export const initialLiveState: LiveState = {
@@ -39,6 +58,13 @@ export const initialLiveState: LiveState = {
   needsResync: false,
   lastError: null,
   positionChanges: {},
+  carFrame: null,
+  frameEpoch: 0,
+  trackAvailability: null,
+  battles: {},
+  battlesStale: false,
+  pendingBattleEvents: [],
+  appliedBattleEventIds: {},
 }
 
 const STATE_TYPES: ReadonlySet<ServerMessage["type"]> = new Set([
@@ -63,7 +89,7 @@ function withDriver(state: RaceState, id: string, update: (d: DriverState | unde
 export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
   switch (msg.type) {
     case "SNAPSHOT": {
-      const { replay, state, state_error } = msg.payload
+      const { replay, state, state_error, battles, positions_available, telemetry_available } = msg.payload
       const runId = msg.run_id ?? state?.run_id ?? null
       const seq = msg.sequence ?? state?.last_sequence ?? null
       if (runId !== null && runId === live.runId && seq !== null && live.lastSequence !== null && seq < live.lastSequence) return live
@@ -77,6 +103,31 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
         needsResync: false,
         lastError: state_error,
         positionChanges: {},
+        frameEpoch: live.frameEpoch + 1,
+        trackAvailability:
+          positions_available === undefined && telemetry_available === undefined
+            ? null
+            : { positions: positions_available ?? false, telemetry: telemetry_available ?? false },
+        // null = unreadable: keep the current run's set and ask for a REST refresh.
+        battles: battles ? toBattleMap(battles) : runId === live.runId ? live.battles : {},
+        battlesStale: battles === null,
+        pendingBattleEvents: [],
+        appliedBattleEventIds: runId === live.runId ? live.appliedBattleEventIds : {},
+      }
+    }
+    case "CAR_FRAME": {
+      // Envelope run_id is null for frames, so order by race time within the current frame epoch only.
+      const { race_time_ms, cars } = msg.payload
+      const prev = live.carFrame
+      const sameEpoch = prev?.epoch === live.frameEpoch
+      const jump = SNAP_AFTER_WALL_MS * (live.clock?.playback_speed ?? live.replay?.playback_speed ?? 1)
+      const step = prev ? race_time_ms - prev.race_time_ms : 0
+      // A small step back is a reordered frame; a big one is a restart whose snapshot has not arrived yet.
+      if (prev && sameEpoch && step < 0 && -step <= jump) return live
+      const snap = !prev || !sameEpoch || Math.abs(step) > jump
+      return {
+        ...live,
+        carFrame: { epoch: live.frameEpoch, race_time_ms, snap, cars: Object.fromEntries(cars.map((c) => [c.driver_id, c])) },
       }
     }
     case "REPLAY_STATUS":
@@ -96,10 +147,15 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
     // Announces a (possibly new) run: adopt it wholesale.
     const { state } = msg.payload
     const runId = msg.run_id ?? state.run_id
+    const sameRun = runId === live.runId
     return {
       ...live,
       state: sortedState(state),
-      events: runId === live.runId ? live.events : [],
+      events: sameRun ? live.events : [],
+      battles: sameRun ? live.battles : {},
+      pendingBattleEvents: sameRun ? live.pendingBattleEvents : [],
+      appliedBattleEventIds: sameRun ? live.appliedBattleEventIds : {},
+      frameEpoch: sameRun ? live.frameEpoch : live.frameEpoch + 1,
       runId,
       lastSequence: msg.sequence ?? state.last_sequence,
       needsResync: false,
@@ -109,7 +165,16 @@ export function liveReducer(live: LiveState, msg: ServerMessage): LiveState {
   // Events dedup by id, so they skip the sequence check, never advance the state cursor and never request a resync.
   if (msg.type === "DETECTED_EVENT") {
     const { event } = msg.payload
-    return event.run_id === live.runId ? { ...live, events: mergeEvents(live.events, [event]) } : live
+    if (event.run_id !== live.runId) return live
+    const events = mergeEvents(live.events, [event])
+    if (!isBattleEvent(event) || live.appliedBattleEventIds[event.detected_event_id]) return { ...live, events }
+    return {
+      ...live,
+      events,
+      battles: applyBattleEvent(live.battles, event),
+      appliedBattleEventIds: { ...live.appliedBattleEventIds, [event.detected_event_id]: true },
+      pendingBattleEvents: live.battlesStale ? [...live.pendingBattleEvents, event] : live.pendingBattleEvents,
+    }
   }
   if (live.state === null || live.runId === null || msg.run_id !== live.runId) {
     return live.needsResync ? live : { ...live, needsResync: true }

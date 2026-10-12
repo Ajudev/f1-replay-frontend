@@ -1,5 +1,5 @@
-import type { DetectedEvent, DriverTimingSeries, TimingPoint, DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
-import type { ServerMessage } from "@/lib/ws/messages"
+import type { ActiveBattle, DetectedEvent, DriverTimingSeries, TimingPoint, DriverState, DriverSummary, RaceState, RaceSummary, RecentLap, Replay } from "@/lib/api/types"
+import type { CarFrameCar, ServerMessage } from "@/lib/ws/messages"
 
 export const REPLAY_ID = "11111111-1111-4111-8111-111111111111"
 export const RUN_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
@@ -117,3 +117,13 @@ export const tp = (lap: number, over: Partial<TimingPoint> = {}): TimingPoint =>
 })
 /** Timing series for one driver. */
 export const series = (id: string, points: TimingPoint[]): DriverTimingSeries => ({ driver_id: id, abbreviation: id.toUpperCase(), points })
+
+export const car = (driver_id: string, x: number | null = 0, y: number | null = 0, over: Partial<CarFrameCar> = {}): CarFrameCar => ({
+  driver_id, x, y, off_track: x == null ? null : false,
+  telemetry: { speed_kph: 287, rpm: 11250, gear: 7, throttle_pct: 100, brake: false, drs: "OPEN" }, ...over,
+})
+
+export const battle = (attacker: string, defender: string, over: Partial<ActiveBattle> = {}): ActiveBattle => ({
+  attacker_id: attacker, attacker_abbreviation: attacker.toUpperCase(), defender_id: defender,
+  defender_abbreviation: defender.toUpperCase(), started_lap: 10, last_gap_ms: 640, last_observed_lap: 12, ...over,
+})

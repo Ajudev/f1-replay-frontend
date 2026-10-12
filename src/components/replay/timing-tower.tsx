@@ -1,11 +1,13 @@
 "use client"
 
-import { memo } from "react"
+import { memo, useMemo } from "react"
+import { Swords } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { DriverState } from "@/lib/api/types"
+import { battleGapText, battleRoles, type BattleRoles } from "@/lib/replay/battles"
 import { positionChangeStyle } from "@/lib/domain-styles"
 import { liveStore, useLiveStore } from "@/lib/replay/live-store"
 import { formatDelta, formatGap, formatLapTime } from "@/lib/replay/timing-format"
@@ -36,6 +38,8 @@ function TimingTower() {
   const changes = useLiveStore((s) => s.positionChanges)
   const leaderId = useLiveStore((s) => s.state?.leader_driver_id)
   const selected = useLiveStore((s) => s.selectedDriverId)
+  const battles = useLiveStore((s) => s.battles)
+  const roles = useMemo(() => battleRoles(battles), [battles])
 
   if (!hasState) {
     if (created) return <EmptyState title="Standings appear once the replay starts" />
@@ -63,7 +67,7 @@ function TimingTower() {
         </TableHeader>
         <TableBody>
           {drivers.map((d) => (
-            <Row key={d.driver_id} d={d} leaderId={leaderId} change={changes[d.driver_id]} selected={d.driver_id === selected} />
+            <Row key={d.driver_id} d={d} leaderId={leaderId} change={changes[d.driver_id]} selected={d.driver_id === selected} battle={roles.get(d.driver_id)} />
           ))}
         </TableBody>
       </Table>
@@ -71,7 +75,7 @@ function TimingTower() {
   )
 }
 
-const Row = memo(function Row({ d, leaderId, change, selected }: { d: DriverState; leaderId: string | null | undefined; change?: "gain" | "loss"; selected: boolean }) {
+const Row = memo(function Row({ d, leaderId, change, selected, battle }: { d: DriverState; leaderId: string | null | undefined; change?: "gain" | "loss"; selected: boolean; battle?: BattleRoles }) {
   const dnf = d.race_status === "DID_NOT_FINISH"
   const badge = dnf ? ["DNF", "Did not finish"] : d.pit_status === "IN_PIT" ? ["PIT", "In pit"] : d.race_status === "FINISHED" ? ["FIN", "Finished"] : null
   const ch = change ? positionChangeStyle(change) : null
@@ -95,6 +99,7 @@ const Row = memo(function Row({ d, leaderId, change, selected }: { d: DriverStat
           {(d.full_name || d.team_name) && (
             <span className="hidden text-xs text-muted-foreground xl:block">{[d.full_name, d.team_name].filter(Boolean).join(" · ")}</span>
           )}
+          {battle && <BattleBadge roles={battle} />}
           {badge && (
             <span className="ml-1.5 rounded border px-1 text-xs font-medium sm:hidden"><span aria-hidden>{badge[0]}</span><span className="sr-only">{badge[1]}</span></span>
           )}
@@ -110,5 +115,17 @@ const Row = memo(function Row({ d, leaderId, change, selected }: { d: DriverStat
     </TableRow>
   )
 })
+
+function BattleBadge({ roles: { attacking, defending } }: { roles: BattleRoles }) {
+  const text = [
+    attacking && `Attacking ${attacking.defender_abbreviation}, ${battleGapText(attacking)}`,
+    defending && `Defending from ${defending.attacker_abbreviation}, ${battleGapText(defending)}`,
+  ].filter(Boolean).join("; ")
+  return (
+    <span title={text} className="ml-1.5 inline-flex items-center gap-0.5 rounded border border-warning/40 px-1 text-xs font-medium text-warning">
+      <Swords aria-hidden className="size-3" /><span aria-hidden>BTL</span><span className="sr-only">{text}</span>
+    </span>
+  )
+}
 
 const liveStoreSelect = (id: string, selected: boolean) => liveStore.getState().selectDriver(selected ? null : id)

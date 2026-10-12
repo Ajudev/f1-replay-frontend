@@ -2334,10 +2334,680 @@
      }
     }
    }
+  },
+  "/api/v1/sessions/{session_id}/circuit": {
+   "get": {
+    "tags": [
+     "Track"
+    ],
+    "summary": "Circuit layout of a session",
+    "description": "404 ``TRACK_DATA_NOT_IMPORTED`` until the session's track data is imported.",
+    "operationId": "get_session_circuit_api_v1_sessions__session_id__circuit_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CircuitLayoutResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/circuit": {
+   "get": {
+    "tags": [
+     "Track"
+    ],
+    "summary": "Circuit layout of a replay's session",
+    "operationId": "get_replay_circuit_api_v1_replays__replay_id__circuit_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CircuitLayoutResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/drivers/{driver}/telemetry": {
+   "get": {
+    "tags": [
+     "Track"
+    ],
+    "summary": "One driver's telemetry trace for a lap",
+    "description": "Samples of the lap up to the replay clock (``complete`` is false while the lap is\nbeing driven). 409 ``LAP_NOT_REACHED`` for a lap the replay has not reached.",
+    "operationId": "get_lap_telemetry_api_v1_replays__replay_id__drivers__driver__telemetry_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     },
+     {
+      "name": "driver",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9-]{1,36}$",
+       "description": "Driver abbreviation (case-insensitive) or UUID",
+       "title": "Driver"
+      },
+      "description": "Driver abbreviation (case-insensitive) or UUID"
+     },
+     {
+      "name": "lap",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "description": "Lap number",
+       "title": "Lap"
+      },
+      "description": "Lap number"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LapTelemetryResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/replays/{replay_id}/battles": {
+   "get": {
+    "tags": [
+     "Track"
+    ],
+    "summary": "Battles in progress",
+    "description": "Attacker/defender pairs reported by ``BATTLE_FORMING`` and not yet ended by\n``BATTLE_ENDED``, for the replay's current run.",
+    "operationId": "get_active_battles_api_v1_replays__replay_id__battles_get",
+    "parameters": [
+     {
+      "name": "replay_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Replay Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActiveBattlesResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/track-data": {
+   "post": {
+    "tags": [
+     "Data Management"
+    ],
+    "summary": "Import a session's car positions, telemetry and circuit layout",
+    "description": "Downloads telemetry (slow, large). Requires the session's timeline; re-running\nreplaces the previous import. Operator endpoint.",
+    "operationId": "import_track_data_api_v1_sessions__session_id__track_data_post",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TrackDataImportResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Unprocessable Content"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Internal Server Error"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/track-data/status": {
+   "get": {
+    "tags": [
+     "Data Management"
+    ],
+    "summary": "Whether a session's track data has been imported",
+    "operationId": "get_track_data_status_api_v1_sessions__session_id__track_data_status_get",
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TrackDataStatusResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
   "schemas": {
+   "ActiveBattleOut": {
+    "properties": {
+     "attacker_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Attacker Id"
+     },
+     "attacker_abbreviation": {
+      "type": "string",
+      "title": "Attacker Abbreviation"
+     },
+     "defender_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Defender Id"
+     },
+     "defender_abbreviation": {
+      "type": "string",
+      "title": "Defender Abbreviation"
+     },
+     "started_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started Lap"
+     },
+     "last_gap_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Gap Ms",
+      "description": "Gap at the attacker's last observed lap end"
+     },
+     "last_observed_lap": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Observed Lap"
+     }
+    },
+    "type": "object",
+    "required": [
+     "attacker_id",
+     "attacker_abbreviation",
+     "defender_id",
+     "defender_abbreviation",
+     "started_lap",
+     "last_gap_ms",
+     "last_observed_lap"
+    ],
+    "title": "ActiveBattleOut"
+   },
+   "ActiveBattlesResponse": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "run_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Run Id"
+     },
+     "battles": {
+      "items": {
+       "$ref": "#/components/schemas/ActiveBattleOut"
+      },
+      "type": "array",
+      "title": "Battles"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "run_id",
+     "battles"
+    ],
+    "title": "ActiveBattlesResponse"
+   },
+   "Bounds": {
+    "properties": {
+     "min_x": {
+      "type": "integer",
+      "title": "Min X"
+     },
+     "max_x": {
+      "type": "integer",
+      "title": "Max X"
+     },
+     "min_y": {
+      "type": "integer",
+      "title": "Min Y"
+     },
+     "max_y": {
+      "type": "integer",
+      "title": "Max Y"
+     }
+    },
+    "type": "object",
+    "required": [
+     "min_x",
+     "max_x",
+     "min_y",
+     "max_y"
+    ],
+    "title": "Bounds"
+   },
+   "CircuitLayoutResponse": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "circuit_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Circuit Name"
+     },
+     "rotation_deg": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rotation Deg",
+      "description": "Rotate by this to match official maps"
+     },
+     "bounds": {
+      "$ref": "#/components/schemas/Bounds",
+      "description": "Extent of the outline and every stored car position"
+     },
+     "outline": {
+      "items": {
+       "prefixItems": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "integer"
+        }
+       ],
+       "type": "array",
+       "maxItems": 2,
+       "minItems": 2
+      },
+      "type": "array",
+      "title": "Outline",
+      "description": "[x, y] points in driving order"
+     },
+     "corners": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/CornerOut"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Corners",
+      "description": "null when unavailable"
+     },
+     "sample_interval_ms": {
+      "type": "integer",
+      "title": "Sample Interval Ms"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings"
+     }
+    },
+    "type": "object",
+    "required": [
+     "session_id",
+     "circuit_name",
+     "rotation_deg",
+     "bounds",
+     "outline",
+     "corners",
+     "sample_interval_ms",
+     "warnings"
+    ],
+    "title": "CircuitLayoutResponse",
+    "description": "Track outline and corners in raw FastF1 units (1/10 m), unrotated."
+   },
+   "CornerOut": {
+    "properties": {
+     "number": {
+      "type": "integer",
+      "title": "Number"
+     },
+     "letter": {
+      "type": "string",
+      "title": "Letter"
+     },
+     "x": {
+      "type": "integer",
+      "title": "X"
+     },
+     "y": {
+      "type": "integer",
+      "title": "Y"
+     },
+     "angle_deg": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Angle Deg"
+     }
+    },
+    "type": "object",
+    "required": [
+     "number",
+     "letter",
+     "x",
+     "y",
+     "angle_deg"
+    ],
+    "title": "CornerOut"
+   },
    "DetectedEventOut": {
     "properties": {
      "detected_event_id": {
@@ -2578,7 +3248,8 @@
      "PACE_DEGRADATION",
      "PACE_ANOMALY",
      "PERSONAL_BEST",
-     "NEW_STINT"
+     "NEW_STINT",
+     "BATTLE_ENDED"
     ],
     "title": "DetectedEventType",
     "description": "Analytical events produced by the event detection engine.\n\nDistinct from ``EventType`` (raw historical timeline events)."
@@ -2636,6 +3307,17 @@
        }
       ],
       "title": "Team Name"
+     },
+     "team_color": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Team Color"
      },
      "grid_position": {
       "anyOf": [
@@ -3000,6 +3682,18 @@
       ],
       "title": "Team Name"
      },
+     "team_color": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Team Color",
+      "description": "Six hex digits without '#'"
+     },
      "grid_position": {
       "anyOf": [
        {
@@ -3136,6 +3830,17 @@
      "points"
     ],
     "title": "DriverTimingSeries"
+   },
+   "DrsState": {
+    "type": "string",
+    "enum": [
+     "OFF",
+     "ELIGIBLE",
+     "OPEN",
+     "UNKNOWN"
+    ],
+    "title": "DrsState",
+    "description": "DRS flap state derived from the raw FastF1 ``DRS`` channel code."
    },
    "ErrorResponse": {
     "properties": {
@@ -3626,6 +4331,70 @@
      "race_time_ms"
     ],
     "title": "LapRecord"
+   },
+   "LapTelemetryResponse": {
+    "properties": {
+     "replay_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Replay Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "driver_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Driver Id"
+     },
+     "abbreviation": {
+      "type": "string",
+      "title": "Abbreviation"
+     },
+     "lap_number": {
+      "type": "integer",
+      "title": "Lap Number"
+     },
+     "upto_race_time_ms": {
+      "type": "integer",
+      "title": "Upto Race Time Ms",
+      "description": "Replay clock the trace is limited to"
+     },
+     "complete": {
+      "type": "boolean",
+      "title": "Complete",
+      "description": "False while the lap is still being driven"
+     },
+     "samples": {
+      "items": {
+       "$ref": "#/components/schemas/TelemetrySampleOut"
+      },
+      "type": "array",
+      "title": "Samples"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings"
+     }
+    },
+    "type": "object",
+    "required": [
+     "replay_id",
+     "session_id",
+     "driver_id",
+     "abbreviation",
+     "lap_number",
+     "upto_race_time_ms",
+     "complete",
+     "samples",
+     "warnings"
+    ],
+    "title": "LapTelemetryResponse"
    },
    "PitStatus": {
     "type": "string",
@@ -4792,6 +5561,127 @@
     ],
     "title": "StintOut"
    },
+   "TelemetrySampleOut": {
+    "properties": {
+     "race_time_ms": {
+      "type": "integer",
+      "title": "Race Time Ms"
+     },
+     "x": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "X"
+     },
+     "y": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Y"
+     },
+     "off_track": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Off Track"
+     },
+     "speed_kph": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speed Kph"
+     },
+     "rpm": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rpm"
+     },
+     "gear": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gear"
+     },
+     "throttle_pct": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Throttle Pct",
+      "description": "0-100 (raw values outside are kept)"
+     },
+     "brake": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Brake"
+     },
+     "drs": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DrsState"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "race_time_ms",
+     "x",
+     "y",
+     "off_track",
+     "speed_kph",
+     "rpm",
+     "gear",
+     "throttle_pct",
+     "brake",
+     "drs"
+    ],
+    "title": "TelemetrySampleOut"
+   },
    "TimelineEventOut": {
     "properties": {
      "id": {
@@ -5130,6 +6020,122 @@
     ],
     "title": "TimingPoint"
    },
+   "TrackDataImportResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "imported",
+       "replaced"
+      ],
+      "title": "Status"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "driver_count": {
+      "type": "integer",
+      "title": "Driver Count",
+      "description": "Drivers with at least one stored sample"
+     },
+     "position_sample_count": {
+      "type": "integer",
+      "title": "Position Sample Count"
+     },
+     "telemetry_sample_count": {
+      "type": "integer",
+      "title": "Telemetry Sample Count"
+     },
+     "outline_points": {
+      "type": "integer",
+      "title": "Outline Points"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings",
+      "description": "Data-quality issues found during import"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "session_id",
+     "driver_count",
+     "position_sample_count",
+     "telemetry_sample_count",
+     "outline_points",
+     "warnings"
+    ],
+    "title": "TrackDataImportResponse"
+   },
+   "TrackDataStatusResponse": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "NOT_IMPORTED",
+       "IMPORTED"
+      ],
+      "title": "Status"
+     },
+     "imported_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Imported At"
+     },
+     "sample_interval_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sample Interval Ms"
+     },
+     "position_sample_count": {
+      "type": "integer",
+      "title": "Position Sample Count",
+      "default": 0
+     },
+     "telemetry_sample_count": {
+      "type": "integer",
+      "title": "Telemetry Sample Count",
+      "default": 0
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings"
+     }
+    },
+    "type": "object",
+    "required": [
+     "session_id",
+     "status"
+    ],
+    "title": "TrackDataStatusResponse"
+   },
    "TrackStatus": {
     "type": "string",
     "enum": [
@@ -5251,6 +6257,10 @@
   {
    "name": "Timing",
    "description": "Lap-by-lap data series for charts"
+  },
+  {
+   "name": "Track",
+   "description": "Circuit map: layout, per-lap car telemetry and battles in progress"
   },
   {
    "name": "Data Management",

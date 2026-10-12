@@ -165,3 +165,33 @@ describe("position change highlight", () => {
     expect(ham.className).toContain("motion-reduce:animate-none")
   })
 })
+
+describe("timing tower battles", () => {
+  it("marks both rows of an active battle with text, not colour only", () => {
+    act(() => {
+      liveStore.getState().reset(REPLAY_ID)
+      liveStore.getState().setConnectionStatus("open")
+      liveStore.getState().apply(msg("SNAPSHOT", {
+        replay: replay(), state: raceState(), state_error: null,
+        battles: [{ attacker_id: "ham", attacker_abbreviation: "HAM", defender_id: "ver", defender_abbreviation: "VER", started_lap: 3, last_gap_ms: 640, last_observed_lap: 4 }],
+      }, { sequence: 5 }))
+    })
+    render(<LiveTiming />)
+    expect(screen.getByText("Defending from HAM, gap +0.640s (lap 4)")).toBeInTheDocument()
+    expect(screen.getByText("Attacking VER, gap +0.640s (lap 4)")).toBeInTheDocument()
+  })
+  it("shows both roles for a car in a train, and an unknown gap as text", () => {
+    act(() => {
+      liveStore.getState().reset(REPLAY_ID)
+      liveStore.getState().apply(msg("SNAPSHOT", {
+        replay: replay(), state: raceState({ drivers: [driver("nor", 1), driver("ver", 2), driver("ham", 3)] }), state_error: null,
+        battles: [
+          { attacker_id: "ver", attacker_abbreviation: "VER", defender_id: "nor", defender_abbreviation: "NOR", started_lap: 3, last_gap_ms: null, last_observed_lap: null },
+          { attacker_id: "ham", attacker_abbreviation: "HAM", defender_id: "ver", defender_abbreviation: "VER", started_lap: 3, last_gap_ms: 800, last_observed_lap: 5 },
+        ],
+      }, { sequence: 5 }))
+    })
+    render(<LiveTiming />)
+    expect(screen.getByText("Attacking NOR, gap unknown; Defending from HAM, gap +0.800s (lap 5)")).toBeInTheDocument()
+  })
+})

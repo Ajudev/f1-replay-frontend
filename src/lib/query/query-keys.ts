@@ -20,4 +20,8 @@ export const queryKeys = {
   replayTiming: (replayId: string, q?: TimingQuery) => ["replays", replayId, "timing", q ?? {}] as const,
   replayDriverTiming: (replayId: string, driver: string, q?: Omit<TimingQuery, "driver">) =>
     ["replays", replayId, "drivers", driver, "timing", q ?? {}] as const,
+  replayCircuit: (replayId: string) => ["replays", replayId, "circuit"] as const,
+  replayBattles: (replayId: string) => ["replays", replayId, "battles"] as const,
+  replayLapTelemetry: (replayId: string, driver: string, lap: number) =>
+    ["replays", replayId, "drivers", driver, "telemetry", lap] as const,
 }

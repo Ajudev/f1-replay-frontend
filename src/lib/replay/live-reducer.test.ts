@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { initialLiveState, liveReducer, type LiveState } from "./live-reducer"
-import { driver, lap, msg, raceState, replay, RUN_A, RUN_B } from "@/lib/test-fixtures"
+import { initialLiveState, liveReducer, SNAP_AFTER_WALL_MS, type LiveState } from "./live-reducer"
+import { battle, car, driver, evt, lap, msg, raceState, replay, RUN_A, RUN_B } from "@/lib/test-fixtures"
+import type { SnapshotPayload } from "@/lib/ws/messages"
 
 const seeded = (over: Partial<LiveState> = {}): LiveState => ({
   ...initialLiveState, replay: replay(), state: raceState(), runId: RUN_A, lastSequence: 5, ...over,
@@ -154,5 +155,59 @@ describe("liveReducer", () => {
       expect(liveReducer(s, msg("SNAPSHOT", { replay: replay(), state: snap, state_error: null }, { sequence: 9 })).positionChanges).toEqual({})
       expect(liveReducer(s, msg("RACE_STATE_SNAPSHOT", { reason: "STATE_INITIALIZED", state: snap }, { sequence: 9 })).positionChanges).toEqual({})
     })
+  })
+})
+
+describe("liveReducer: circuit map", () => {
+  const snap = (over: Partial<SnapshotPayload> = {}, runId = RUN_A) =>
+    msg("SNAPSHOT", { replay: replay(), state: raceState({ run_id: runId }), state_error: null, ...over }, { run_id: runId, sequence: 5 })
+  const frame = (t: number) => msg("CAR_FRAME", { race_time_ms: t, cars: [car("ver", t, 0)] }, { run_id: null, sequence: null })
+
+  it("CAR_FRAME (null run_id) is stored by driver without touching sequence or resync", () => {
+    const s = liveReducer(seeded(), frame(1000))
+    expect(s.carFrame?.cars.ver.x).toBe(1000)
+    expect(s).toMatchObject({ lastSequence: 5, needsResync: false })
+  })
+  it("drops older frames, animates small steps and snaps on big jumps or a new epoch", () => {
+    let s = liveReducer(seeded(), frame(1000))
+    expect(s.carFrame?.snap).toBe(true) // first frame
+    s = liveReducer(s, frame(1250))
+    expect(s.carFrame).toMatchObject({ race_time_ms: 1250, snap: false })
+    expect(liveReducer(s, frame(1100))).toBe(s)
+    // A big step back before any snapshot (restart) is accepted and snapped, not dropped.
+    expect(liveReducer(s, frame(0)).carFrame).toMatchObject({ race_time_ms: 0, snap: true })
+    expect(liveReducer(s, frame(1250 + SNAP_AFTER_WALL_MS + 1)).carFrame?.snap).toBe(true)
+    // After a snapshot (resync/restart) an earlier race time is accepted and snapped.
+    s = liveReducer(liveReducer(s, snap()), frame(500))
+    expect(s.carFrame).toMatchObject({ race_time_ms: 500, snap: true })
+  })
+  it("SNAPSHOT sets availability and replaces battles; null battles keep the set and mark it stale", () => {
+    let s = liveReducer(seeded(), snap({ positions_available: true, telemetry_available: false, battles: [battle("nor", "lec")] }))
+    expect(s.trackAvailability).toEqual({ positions: true, telemetry: false })
+    expect(Object.keys(s.battles)).toEqual(["nor:lec"])
+    s = liveReducer(s, snap({ battles: null }))
+    expect(Object.keys(s.battles)).toEqual(["nor:lec"])
+    expect(s.battlesStale).toBe(true)
+    s = liveReducer(s, snap({ battles: [] }))
+    expect(s).toMatchObject({ battles: {}, battlesStale: false })
+  })
+  it("BATTLE_FORMING adds the pair once; BATTLE_ENDED removes it; RAPIDLY_CLOSING is ignored", () => {
+    const det = (type: string, id: string) => msg("DETECTED_EVENT", { event: evt(type, { gap_ms: 900 }, { run_id: RUN_A, detected_event_id: id }) })
+    let s = liveReducer(seeded(), det("BATTLE_FORMING", "f1"))
+    expect(s.battles["nor:lec"]).toMatchObject({ attacker_abbreviation: "NOR", last_gap_ms: 900, started_lap: 12 })
+    const again = liveReducer(s, det("BATTLE_FORMING", "f2"))
+    expect(again.battles).toBe(s.battles)
+    expect(liveReducer(s, det("RAPIDLY_CLOSING", "r1")).battles).toBe(s.battles)
+    s = liveReducer(s, det("BATTLE_ENDED", "e1"))
+    expect(s.battles).toEqual({})
+    // A redelivered FORMING cannot revive the ended battle.
+    expect(liveReducer(s, det("BATTLE_FORMING", "f1")).battles).toEqual({})
+  })
+  it("a new run clears battles and starts a new frame epoch", () => {
+    const s = seeded({ battles: { "nor:lec": battle("nor", "lec") } })
+    const next = liveReducer(s, msg("RACE_STATE_SNAPSHOT", { reason: "STATE_INITIALIZED", state: raceState({ run_id: RUN_B }) }, { run_id: RUN_B, sequence: 0 }))
+    expect(next.battles).toEqual({})
+    expect(next.frameEpoch).toBe(s.frameEpoch + 1)
+    expect(liveReducer(s, snap({ battles: null }, RUN_B)).battles).toEqual({})
   })
 })

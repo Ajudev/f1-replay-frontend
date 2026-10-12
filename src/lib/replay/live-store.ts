@@ -1,7 +1,8 @@
 import { createStore, useStore } from "zustand"
-import type { DetectedEvent, Replay } from "@/lib/api/types"
+import type { ActiveBattle, DetectedEvent, Replay } from "@/lib/api/types"
 import type { ServerMessage } from "@/lib/ws/messages"
 import type { SocketStatus } from "@/lib/ws/replay-socket"
+import { applyBattleEvent, toBattleMap } from "./battles"
 import { initialLiveState, liveReducer, mergeEvents, type LiveState } from "./live-reducer"
 
 export interface LiveStore extends LiveState {
@@ -20,6 +21,8 @@ export interface LiveStore extends LiveState {
   /** Merges backfilled events; ignored unless replay and run are still the ones requested. */
   mergeEvents: (replayId: string, runId: string, events: DetectedEvent[]) => void
   setEventsBackfillError: (replayId: string, runId: string) => void
+  /** REST fallback for SNAPSHOT.battles = null; ignored unless replay and run are still the ones requested. */
+  setBattles: (replayId: string, runId: string, battles: ActiveBattle[]) => void
   setConnectionStatus: (s: SocketStatus) => void
   selectDriver: (id: string | null) => void
   addComparison: (id: string) => void
@@ -68,6 +71,12 @@ export function createLiveStore() {
       }),
     setEventsBackfillError: (replayId, runId) =>
       set((s) => (s.replayId !== replayId || s.runId !== runId || s.eventsBackfillError ? s : { eventsBackfillError: true })),
+    setBattles: (replayId, runId, battles) =>
+      set((s) =>
+        s.replayId !== replayId || s.runId !== runId
+          ? s
+          : { battles: s.pendingBattleEvents.reduce(applyBattleEvent, toBattleMap(battles)), battlesStale: false, pendingBattleEvents: [] },
+      ),
     setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
     selectDriver: (selectedDriverId) => set({ selectedDriverId }),
     addComparison: (id) =>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { parseServerMessage } from "./messages"
-import { msg, replay } from "@/lib/test-fixtures"
+import { car, msg, replay } from "@/lib/test-fixtures"
 
 describe("parseServerMessage", () => {
   it("accepts a valid message", () => {
@@ -34,5 +34,17 @@ describe("parseServerMessage", () => {
   })
   it("rejects a DETECTED_EVENT without an id", () => {
     expect(parseServerMessage(JSON.stringify({ ...msg("PONG", {}), type: "DETECTED_EVENT", payload: { event: {} } })).kind).toBe("invalid")
+  })
+  it("rejects a SNAPSHOT whose battles are not a list or null", () => {
+    const snap = (battles: unknown) => JSON.stringify({ ...msg("SNAPSHOT", { replay: replay(), state: null, state_error: null }), payload: { replay: replay(), state: null, state_error: null, battles } })
+    expect(parseServerMessage(snap({})).kind).toBe("invalid")
+    expect(parseServerMessage(snap([{ attacker_id: 1 }])).kind).toBe("invalid")
+    expect(parseServerMessage(snap(null)).kind).toBe("message")
+  })
+  it("accepts CAR_FRAME with null run_id and null positions/telemetry; rejects malformed cars", () => {
+    const ok = msg("CAR_FRAME", { race_time_ms: 1000, cars: [car("ver", 1, 2), car("ham", null, null, { telemetry: null })] }, { run_id: null, sequence: null })
+    expect(parseServerMessage(JSON.stringify(ok)).kind).toBe("message")
+    const bad = { ...ok, payload: { race_time_ms: 1000, cars: [{ driver_id: "ver", x: "1", y: 2, telemetry: null }] } }
+    expect(parseServerMessage(JSON.stringify(bad)).kind).toBe("invalid")
   })
 })

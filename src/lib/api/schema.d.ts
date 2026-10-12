@@ -545,10 +545,226 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/circuit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Circuit layout of a session
+         * @description 404 ``TRACK_DATA_NOT_IMPORTED`` until the session's track data is imported.
+         */
+        get: operations["get_session_circuit_api_v1_sessions__session_id__circuit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/replays/{replay_id}/circuit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Circuit layout of a replay's session */
+        get: operations["get_replay_circuit_api_v1_replays__replay_id__circuit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/replays/{replay_id}/drivers/{driver}/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One driver's telemetry trace for a lap
+         * @description Samples of the lap up to the replay clock (``complete`` is false while the lap is
+         *     being driven). 409 ``LAP_NOT_REACHED`` for a lap the replay has not reached.
+         */
+        get: operations["get_lap_telemetry_api_v1_replays__replay_id__drivers__driver__telemetry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/replays/{replay_id}/battles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Battles in progress
+         * @description Attacker/defender pairs reported by ``BATTLE_FORMING`` and not yet ended by
+         *     ``BATTLE_ENDED``, for the replay's current run.
+         */
+        get: operations["get_active_battles_api_v1_replays__replay_id__battles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/track-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a session's car positions, telemetry and circuit layout
+         * @description Downloads telemetry (slow, large). Requires the session's timeline; re-running
+         *     replaces the previous import. Operator endpoint.
+         */
+        post: operations["import_track_data_api_v1_sessions__session_id__track_data_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/track-data/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether a session's track data has been imported */
+        get: operations["get_track_data_status_api_v1_sessions__session_id__track_data_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActiveBattleOut */
+        ActiveBattleOut: {
+            /**
+             * Attacker Id
+             * Format: uuid
+             */
+            attacker_id: string;
+            /** Attacker Abbreviation */
+            attacker_abbreviation: string;
+            /**
+             * Defender Id
+             * Format: uuid
+             */
+            defender_id: string;
+            /** Defender Abbreviation */
+            defender_abbreviation: string;
+            /** Started Lap */
+            started_lap: number | null;
+            /**
+             * Last Gap Ms
+             * @description Gap at the attacker's last observed lap end
+             */
+            last_gap_ms: number | null;
+            /** Last Observed Lap */
+            last_observed_lap: number | null;
+        };
+        /** ActiveBattlesResponse */
+        ActiveBattlesResponse: {
+            /**
+             * Replay Id
+             * Format: uuid
+             */
+            replay_id: string;
+            /** Run Id */
+            run_id: string | null;
+            /** Battles */
+            battles: components["schemas"]["ActiveBattleOut"][];
+        };
+        /** Bounds */
+        Bounds: {
+            /** Min X */
+            min_x: number;
+            /** Max X */
+            max_x: number;
+            /** Min Y */
+            min_y: number;
+            /** Max Y */
+            max_y: number;
+        };
+        /**
+         * CircuitLayoutResponse
+         * @description Track outline and corners in raw FastF1 units (1/10 m), unrotated.
+         */
+        CircuitLayoutResponse: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Circuit Name */
+            circuit_name: string | null;
+            /**
+             * Rotation Deg
+             * @description Rotate by this to match official maps
+             */
+            rotation_deg: number | null;
+            /** @description Extent of the outline and every stored car position */
+            bounds: components["schemas"]["Bounds"];
+            /**
+             * Outline
+             * @description [x, y] points in driving order
+             */
+            outline: [
+                number,
+                number
+            ][];
+            /**
+             * Corners
+             * @description null when unavailable
+             */
+            corners: components["schemas"]["CornerOut"][] | null;
+            /** Sample Interval Ms */
+            sample_interval_ms: number;
+            /** Warnings */
+            warnings: string[];
+        };
+        /** CornerOut */
+        CornerOut: {
+            /** Number */
+            number: number;
+            /** Letter */
+            letter: string;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Angle Deg */
+            angle_deg: number | null;
+        };
         /** DetectedEventOut */
         DetectedEventOut: {
             /**
@@ -637,7 +853,7 @@ export interface components {
          *     Distinct from ``EventType`` (raw historical timeline events).
          * @enum {string}
          */
-        DetectedEventType: "BATTLE_FORMING" | "RAPIDLY_CLOSING" | "OVERTAKE" | "PACE_DEGRADATION" | "PACE_ANOMALY" | "PERSONAL_BEST" | "NEW_STINT";
+        DetectedEventType: "BATTLE_FORMING" | "RAPIDLY_CLOSING" | "OVERTAKE" | "PACE_DEGRADATION" | "PACE_ANOMALY" | "PERSONAL_BEST" | "NEW_STINT" | "BATTLE_ENDED";
         /**
          * DriverRaceStatus
          * @enum {string}
@@ -658,6 +874,8 @@ export interface components {
             full_name?: string | null;
             /** Team Name */
             team_name?: string | null;
+            /** Team Color */
+            team_color?: string | null;
             /** Grid Position */
             grid_position?: number | null;
             /** Position */
@@ -751,6 +969,11 @@ export interface components {
             last_name: string | null;
             /** Team Name */
             team_name: string | null;
+            /**
+             * Team Color
+             * @description Six hex digits without '#'
+             */
+            team_color?: string | null;
             /** Grid Position */
             grid_position: number | null;
             /** Finish Position */
@@ -793,6 +1016,12 @@ export interface components {
              */
             points: components["schemas"]["TimingPoint"][];
         };
+        /**
+         * DrsState
+         * @description DRS flap state derived from the raw FastF1 ``DRS`` channel code.
+         * @enum {string}
+         */
+        DrsState: "OFF" | "ELIGIBLE" | "OPEN" | "UNKNOWN";
         /**
          * ErrorResponse
          * @description Body of every non-2xx response.
@@ -942,6 +1171,42 @@ export interface components {
             race_time_ms: number;
             /** Completion Time Source */
             completion_time_source?: string | null;
+        };
+        /** LapTelemetryResponse */
+        LapTelemetryResponse: {
+            /**
+             * Replay Id
+             * Format: uuid
+             */
+            replay_id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Driver Id
+             * Format: uuid
+             */
+            driver_id: string;
+            /** Abbreviation */
+            abbreviation: string;
+            /** Lap Number */
+            lap_number: number;
+            /**
+             * Upto Race Time Ms
+             * @description Replay clock the trace is limited to
+             */
+            upto_race_time_ms: number;
+            /**
+             * Complete
+             * @description False while the lap is still being driven
+             */
+            complete: boolean;
+            /** Samples */
+            samples: components["schemas"]["TelemetrySampleOut"][];
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * PitStatus
@@ -1389,6 +1654,31 @@ export interface components {
             /** Tyre Age At Start */
             tyre_age_at_start: number | null;
         };
+        /** TelemetrySampleOut */
+        TelemetrySampleOut: {
+            /** Race Time Ms */
+            race_time_ms: number;
+            /** X */
+            x: number | null;
+            /** Y */
+            y: number | null;
+            /** Off Track */
+            off_track: boolean | null;
+            /** Speed Kph */
+            speed_kph: number | null;
+            /** Rpm */
+            rpm: number | null;
+            /** Gear */
+            gear: number | null;
+            /**
+             * Throttle Pct
+             * @description 0-100 (raw values outside are kept)
+             */
+            throttle_pct: number | null;
+            /** Brake */
+            brake: boolean | null;
+            drs: components["schemas"]["DrsState"] | null;
+        };
         /** TimelineEventOut */
         TimelineEventOut: {
             /**
@@ -1506,6 +1796,64 @@ export interface components {
              * @description Empty when no sector times exist
              */
             sectors: components["schemas"]["SectorOut"][];
+        };
+        /** TrackDataImportResponse */
+        TrackDataImportResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "imported" | "replaced";
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Driver Count
+             * @description Drivers with at least one stored sample
+             */
+            driver_count: number;
+            /** Position Sample Count */
+            position_sample_count: number;
+            /** Telemetry Sample Count */
+            telemetry_sample_count: number;
+            /** Outline Points */
+            outline_points: number;
+            /**
+             * Warnings
+             * @description Data-quality issues found during import
+             */
+            warnings: string[];
+        };
+        /** TrackDataStatusResponse */
+        TrackDataStatusResponse: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "NOT_IMPORTED" | "IMPORTED";
+            /** Imported At */
+            imported_at?: string | null;
+            /** Sample Interval Ms */
+            sample_interval_ms?: number | null;
+            /**
+             * Position Sample Count
+             * @default 0
+             */
+            position_sample_count: number;
+            /**
+             * Telemetry Sample Count
+             * @default 0
+             */
+            telemetry_sample_count: number;
+            /** Warnings */
+            warnings?: string[];
         };
         /**
          * TrackStatus
@@ -2908,6 +3256,305 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimelineSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_circuit_api_v1_sessions__session_id__circuit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CircuitLayoutResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_circuit_api_v1_replays__replay_id__circuit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                replay_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CircuitLayoutResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_lap_telemetry_api_v1_replays__replay_id__drivers__driver__telemetry_get: {
+        parameters: {
+            query: {
+                /** @description Lap number */
+                lap: number;
+            };
+            header?: never;
+            path: {
+                replay_id: string;
+                /** @description Driver abbreviation (case-insensitive) or UUID */
+                driver: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LapTelemetryResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_active_battles_api_v1_replays__replay_id__battles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                replay_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActiveBattlesResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    import_track_data_api_v1_sessions__session_id__track_data_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackDataImportResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_track_data_status_api_v1_sessions__session_id__track_data_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackDataStatusResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

@@ -1,4 +1,4 @@
-import type { DetectedEvent, DriverState, ErrorBody, RaceState, RecentLap, Replay } from "@/lib/api/types"
+import type { ActiveBattle, DetectedEvent, DriverState, DrsState, ErrorBody, RaceState, RecentLap, Replay } from "@/lib/api/types"
 
 export const WS_SCHEMA_VERSION = 1
 
@@ -26,8 +26,37 @@ export interface ClockPayload {
 
 export type RaceLevelFields = Partial<Omit<RaceState, "drivers">>
 
+/** Recorded sample (stepped, never interpolated); every field can be null on its own. */
+export interface CarTelemetry {
+  speed_kph: number | null
+  rpm: number | null
+  gear: number | null
+  throttle_pct: number | null
+  brake: boolean | null
+  drs: DrsState | null
+}
+
+/** One car in a CAR_FRAME; position and telemetry are null independently. */
+export interface CarFrameCar {
+  driver_id: string
+  x: number | null
+  y: number | null
+  off_track: boolean | null
+  telemetry: CarTelemetry | null
+}
+
+export interface SnapshotPayload {
+  replay: Replay
+  state: RaceState | null
+  state_error: ErrorBody | null
+  /** Absent on older backends. `null` = the backend could not read them. */
+  battles?: ActiveBattle[] | null
+  positions_available?: boolean
+  telemetry_available?: boolean
+}
+
 export type ServerMessage =
-  | Envelope<"SNAPSHOT", { replay: Replay; state: RaceState | null; state_error: ErrorBody | null }>
+  | Envelope<"SNAPSHOT", SnapshotPayload>
   | Envelope<"PONG", Record<string, never>>
   | Envelope<"ERROR", ErrorBody>
   | Envelope<"REPLAY_STATUS", { replay: Replay }>
@@ -56,6 +85,8 @@ export type ServerMessage =
     >
   | Envelope<"TRACK_STATUS_CHANGED", { track_status: RaceState["track_status"] }>
   | Envelope<"DETECTED_EVENT", { event: DetectedEvent }>
+  /** Droppable; envelope run_id and sequence are null. */
+  | Envelope<"CAR_FRAME", { race_time_ms: number; cars: CarFrameCar[] }>
 
 export type ServerMessageType = ServerMessage["type"]
 
@@ -64,7 +95,7 @@ export type ClientMessage = { type: "PING" } | { type: "RESYNC" }
 const KNOWN_TYPES: ReadonlySet<string> = new Set<ServerMessageType>([
   "SNAPSHOT", "PONG", "ERROR", "REPLAY_STATUS", "REPLAY_COMPLETED", "REPLAY_CLOCK", "RACE_STATE_SNAPSHOT",
   "RACE_STATE_UPDATE", "DRIVER_UPDATE", "LAP_COMPLETED", "POSITION_CHANGED", "PIT_STATUS_CHANGED",
-  "TRACK_STATUS_CHANGED", "DETECTED_EVENT",
+  "TRACK_STATUS_CHANGED", "DETECTED_EVENT", "CAR_FRAME",
 ])
 
 export type ParseResult =
@@ -88,9 +119,14 @@ const replayOk = shape({
 })
 const stateOk = shape({ run_id: str, drivers: arr, last_sequence: num })
 const driverRef = shape({ driver_id: str })
+const battleOk = shape({ attacker_id: str, defender_id: str })
+/** Optional on older backends; when present it must be null or a list of battles. */
+const battlesOk: Check = (v) => v === undefined || v === null || (Array.isArray(v) && v.every(battleOk))
+const carOk = shape({ driver_id: str, x: nullable(num), y: nullable(num), telemetry: nullable(isObj) })
 
 const PAYLOAD_CHECKS: Record<ServerMessageType, Check> = {
-  SNAPSHOT: (p) => shape({ replay: replayOk, state: nullable(stateOk), state_error: nullable(shape({ code: str, message: str })) })(p),
+  SNAPSHOT: (p) =>
+    shape({ replay: replayOk, state: nullable(stateOk), state_error: nullable(shape({ code: str, message: str })) })(p) && battlesOk((p as Rec).battles),
   PONG: isObj,
   ERROR: shape({ code: str, message: str }),
   REPLAY_STATUS: shape({ replay: replayOk }),
@@ -106,6 +142,7 @@ const PAYLOAD_CHECKS: Record<ServerMessageType, Check> = {
   PIT_STATUS_CHANGED: driverRef,
   TRACK_STATUS_CHANGED: (p) => isObj(p) && "track_status" in p,
   DETECTED_EVENT: shape({ event: shape({ detected_event_id: str, run_id: str, source_sequence: num, event_type: str }) }),
+  CAR_FRAME: (p) => shape({ race_time_ms: num, cars: arr })(p) && (p as Rec & { cars: unknown[] }).cars.every(carOk),
 }
 
 /** Parses and validates a frame: envelope plus per-type payload shape. Nulls are kept; malformed frames never pass. */

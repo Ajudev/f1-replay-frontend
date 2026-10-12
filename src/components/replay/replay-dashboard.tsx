@@ -15,6 +15,9 @@ import { useRace, useReplay, useReplayControl, type ReplayCommand } from "@/lib/
 import { selectEffectiveReplay } from "@/lib/replay/effective-replay"
 import { SectionBoundary } from "@/components/section-boundary"
 import { Analytics } from "./analytics"
+import { CircuitMap } from "./circuit-map"
+import { LapTraceChart } from "./lap-trace-chart"
+import { TelemetryPanel } from "./telemetry-panel"
 import { RaceStatusBar } from "./race-status-bar"
 import { LiveTiming } from "./timing-tower"
 import { useLiveStore } from "@/lib/replay/live-store"
@@ -47,6 +50,13 @@ function Dashboard({ replayId }: { replayId: string }) {
     <div className="space-y-4">
       <ReplayBar rest={q.data} onRetry={retry} refetchError={q.isRefetchError ? errorMessage(q.error) : null} />
       <LiveTiming onRetryEvents={retryEvents} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <SectionBoundary label="Circuit map"><CircuitMap replayId={replayId} /></SectionBoundary>
+        <div className="space-y-4">
+          <SectionBoundary label="Live telemetry"><TelemetryPanel /></SectionBoundary>
+          <SectionBoundary label="Lap trace"><LapTraceChart replayId={replayId} /></SectionBoundary>
+        </div>
+      </div>
       <SectionBoundary label="Analytics"><Analytics replayId={replayId} /></SectionBoundary>
     </div>
   )

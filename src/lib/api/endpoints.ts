@@ -1,11 +1,14 @@
 import { request, type RequestOptions } from "./client"
 import type {
+  ActiveBattles,
+  CircuitLayout,
   DetectedEvent,
   DetectedEventPage,
   DriverStateResponse,
   DriverSummary,
   DriverTiming,
   LapPage,
+  LapTelemetry,
   RaceDetail,
   RaceState,
   RaceSummary,
@@ -85,4 +88,8 @@ export const api = {
     request<ReplayTiming>(`/replays/${enc(id)}/timing`, { query: { ...query }, ...o }),
   replayDriverTiming: (id: string, driver: string, query?: Omit<TimingQuery, "driver">, o?: Opts) =>
     request<DriverTiming>(`/replays/${enc(id)}/drivers/${enc(driver)}/timing`, { query: { ...query }, ...o }),
+  replayCircuit: (id: string, o?: Opts) => request<CircuitLayout>(`/replays/${enc(id)}/circuit`, o),
+  replayBattles: (id: string, o?: Opts) => request<ActiveBattles>(`/replays/${enc(id)}/battles`, o),
+  replayLapTelemetry: (id: string, driver: string, lap: number, o?: Opts) =>
+    request<LapTelemetry>(`/replays/${enc(id)}/drivers/${enc(driver)}/telemetry`, { query: { lap }, ...o }),
 }

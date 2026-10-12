@@ -235,7 +235,8 @@ drivers, Create Replay), `/replays/[replayId]` (playback dashboard, REST plus li
   stale" shows when the socket is not open or a resync is pending. COMPLETED shows the final state.
 - Responsive: tower and panel are side by side from `lg`, stacked below. Under `sm` the Interval, Best lap, Pit
   and Status columns are hidden (details are in the panel); the table scrolls horizontally.
-- Limitations: no sector times and no team colours (not in the API); lap history limited to `recent_laps`.
+- Battles: a row in an active battle shows a `BTL` badge (attacking/defending and gap as text).
+- Limitations: no sector times; lap history limited to `recent_laps`.
 
 ## Analytics
 
@@ -261,8 +262,38 @@ drivers, Create Replay), `/replays/[replayId]` (playback dashboard, REST plus li
 - Selection: `comparisonDriverIds` in the live store (max 4, selection order sets the colour, dash and marker).
   Cleared on replay switch, kept across a restart. "Show on charts" in the event feed sets `highlightedEventId`
   and adds the event's drivers while slots remain. `selectedDriverId` is separate and unchanged.
-- Limitations: no team colours (not in the API); gap is lap-end only, not mid-lap; charts do not seek; no
+- Limitations: comparison slots use fixed colours, not team colours; gap is lap-end only, not mid-lap; charts do not seek; no
   E2E/Playwright coverage yet (unit and component tests only).
+
+## Circuit map
+
+Contract: backend `README.md` "Circuit map" and `backend/app/schemas/track.py`; brief in
+`backend/.claude/plan/frontend-brief-circuit-map.md`.
+
+- `GET /replays/{id}/circuit` (`useReplayCircuit`, fetched once, `staleTime: Infinity`). 404
+  `TRACK_DATA_NOT_IMPORTED` shows an empty state; the rest of the dashboard keeps working. The track-data
+  import (`POST /sessions/{id}/track-data`) is an operator action and is not exposed.
+- Geometry (`src/lib/circuit/geometry.ts`): outline, corners and cars are rotated by `rotation_deg` (null = 0)
+  around the bounds centre, then Y is flipped. The SVG `viewBox` is the rotated bounds plus padding, so
+  `preserveAspectRatio` fits the map without resize code. `team_color` is accepted only as six hex digits.
+- `CAR_FRAME` (~4 Hz, droppable): the envelope `run_id` and `sequence` are `null`, so frames bypass the
+  run-scoped delta path (they never request a resync). The reducer keeps the latest frame per *frame epoch*
+  (bumped by every `SNAPSHOT` and run change). A small step back in `payload.race_time_ms` (within
+  `1000 ms × playback_speed`) is a reordered frame and is dropped; a bigger jump either way (restart before its
+  snapshot, seek) is accepted with `snap`, as is the first frame of an epoch. Otherwise markers glide with a
+  250 ms CSS transition (cut by reduced motion). The disconnected note shows only after a lost connection.
+- Labels come from race state (`P{position} {abbreviation}`), never from on-track order. Null position hides
+  the marker; null telemetry shows "No data"; raw throttle above 100 is shown, clamped only in bars/charts.
+- `SNAPSHOT.positions_available` / `telemetry_available` both false: "No car position data" note.
+- Battles: `SNAPSHOT.battles` replaces the set; `null` keeps it and triggers one `GET /replays/{id}/battles`
+  (`useBattlesFallback`, result ignored if the run changed); battle detections received during the fetch are
+  replayed over its result. `BATTLE_FORMING` adds the pair, `BATTLE_ENDED` removes it, each detection id is
+  applied once per run, `RAPIDLY_CLOSING` is ignored. A new run clears the set. A car can attack and defend at
+  once. Map: solid ring (attacking) and dashed outer ring in the attacker's colour (defending), plus a text
+  list; tower: `BTL` badge. The gap is the backend's last observed (lap-end) gap and is shown with its lap.
+- Lap trace: `GET /replays/{id}/drivers/{driver}/telemetry?lap=N`. The picker offers laps up to the driver's
+  current lap only; 409 `LAP_NOT_REACHED` and empty `samples` have their own messages. An in-progress lap's
+  query key includes the driver's `laps_completed`, so the driver's `LAP_COMPLETED` refetches the full lap.
 
 ## Known gaps
 
@@ -274,6 +305,9 @@ drivers, Create Replay), `/replays/[replayId]` (playback dashboard, REST plus li
 
 - No running backend was available: live REST responses and WebSocket frames are not verified, only
   the exported schema and backend source.
+- Circuit map: no speed-coloured lap path, no two-driver trace comparison, no `RAPIDLY_CLOSING` hint.
+  A `CAR_FRAME` from before a resync that arrives after the new snapshot is accepted (no run id to check);
+  the next frame supersedes it within ~250 ms.
 - Tyre compound is a free string in the schema, not an enum.
 - Lifecycle messages are unordered relative to state messages.
 - No authentication.

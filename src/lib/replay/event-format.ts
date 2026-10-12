@@ -14,6 +14,7 @@ export const CATEGORIES: { id: EventCategory; label: string }[] = [
 
 const TYPES: Record<string, { category: EventCategory; label: string }> = {
   BATTLE_FORMING: { category: "battles", label: "Battle forming" },
+  BATTLE_ENDED: { category: "battles", label: "Battle ended" },
   RAPIDLY_CLOSING: { category: "battles", label: "Rapidly closing" },
   OVERTAKE: { category: "overtakes", label: "Overtake" },
   PACE_DEGRADATION: { category: "pace", label: "Pace degradation" },
@@ -72,6 +73,16 @@ export function evidenceLines(ev: Pick<DetectedEvent, "event_type" | "evidence">
           ["Max gap", secs(num(e, "max_gap_ms"))],
           ["Min closing rate", num(e, "min_closing_rate_ms") == null ? null : `${(num(e, "min_closing_rate_ms")! / 1000).toFixed(2)}s/lap`],
           ["Basis", str(e, "basis") && words(str(e, "basis")!)],
+        ]
+      }
+      case "BATTLE_ENDED": {
+        const from = num(e, "started_lap"), to = num(e, "ended_lap")
+        return [
+          ["Reason", str(e, "reason") && words(str(e, "reason")!)],
+          ["Gap", secs(num(e, "gap_ms"))],
+          ["Laps", from == null || to == null ? null : `${from}–${to}`],
+          ["Attacker", pos(num(e, "attacker_position"))],
+          ["Defender", pos(num(e, "defender_position"))],
         ]
       }
       case "OVERTAKE":

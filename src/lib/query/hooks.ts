@@ -67,3 +67,44 @@ export function useReplayControl(replayId: string) {
 }
 
 export const useCreateReplay = () => useMutation({ mutationFn: (body: ReplayCreateRequest) => api.createReplay(body) })
+
+/** Track outline and corners; static per session. 404 TRACK_DATA_NOT_IMPORTED is not retried (4xx). */
+export const useReplayCircuit = (replayId: string) =>
+  useQuery({
+    queryKey: queryKeys.replayCircuit(replayId),
+    queryFn: ({ signal }) => api.replayCircuit(replayId, { signal }),
+    staleTime: Infinity,
+  })
+
+/** REST fallback while SNAPSHOT.battles was null; writes the result into the live store for the requesting run. */
+export function useBattlesFallback(replayId: string) {
+  const runId = useLiveStore((s) => (s.replayId === replayId && s.battlesStale ? s.runId : null))
+  useQuery({
+    queryKey: [...queryKeys.replayBattles(replayId), runId] as const,
+    queryFn: async ({ signal }) => {
+      const res = await api.replayBattles(replayId, { signal })
+      liveStore.getState().setBattles(replayId, runId!, res.battles)
+      return res
+    },
+    enabled: runId !== null,
+    staleTime: 0,
+  })
+}
+
+/**
+ * One lap's telemetry, limited by the backend to the replay clock. While the lap is being driven the key carries the
+ * driver's laps_completed, so the driver's LAP_COMPLETED refetches the full lap once.
+ */
+export function useLapTelemetry(replayId: string, driverId: string | null, lap: number | null) {
+  const runId = useLiveStore((s) => (s.replayId === replayId ? s.runId : null))
+  const done = useLiveStore((s) => {
+    const d = driverId ? s.state?.drivers.find((x) => x.driver_id === driverId) : undefined
+    return Math.min(d?.laps_completed ?? 0, lap ?? 0)
+  })
+  return useQuery({
+    queryKey: [...queryKeys.replayLapTelemetry(replayId, driverId ?? "", lap ?? 0), runId, done] as const,
+    queryFn: ({ signal }) => api.replayLapTelemetry(replayId, driverId!, lap!, { signal }),
+    enabled: runId !== null && driverId !== null && lap !== null,
+    staleTime: Infinity,
+  })
+}

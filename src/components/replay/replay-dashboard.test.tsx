@@ -14,6 +14,7 @@ vi.mock("@/lib/api/endpoints", () => ({
   api: {
     replay: vi.fn(), race: vi.fn(), startReplay: vi.fn(), pauseReplay: vi.fn(), resumeReplay: vi.fn(),
     stopReplay: vi.fn(), restartReplay: vi.fn(), setReplaySpeed: vi.fn(), replayEvents: vi.fn(),
+    replayCircuit: vi.fn(), replayBattles: vi.fn(), replayLapTelemetry: vi.fn(),
   },
 }))
 const m = vi.mocked(api, true)
@@ -35,6 +36,8 @@ beforeEach(() => {
   m.replayEvents.mockResolvedValue({ replay_id: REPLAY_ID, run_id: null, items: [], total: 0, limit: 200, offset: 0 })
   m.race.mockResolvedValue(raceSummary())
   m.replay.mockResolvedValue(live())
+  m.replayCircuit.mockRejectedValue(new ApiError(404, "TRACK_DATA_NOT_IMPORTED", "Track data not imported"))
+  m.replayLapTelemetry.mockResolvedValue({ replay_id: REPLAY_ID, session_id: "s", driver_id: "d", abbreviation: "VER", lap_number: 1, upto_race_time_ms: 0, complete: true, samples: [], warnings: [] })
 })
 afterEach(() => {
   vi.useRealTimers()
